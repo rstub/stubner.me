@@ -1,48 +1,46 @@
 ---
 authors:
 - admin
-bio: My research interests include distributed robotics, mobile computing and programmable
-  matter.
+bio: ""
 education:
   courses:
-  - course: PhD in Artificial Intelligence
-    institution: Stanford University
-    year: 2012
-  - course: MEng in Artificial Intelligence
-    institution: Massachusetts Institute of Technology
-    year: 2009
-  - course: BSc in Artificial Intelligence
-    institution: Massachusetts Institute of Technology
-    year: 2008
+  - course: PhD in Physics
+    institution: Friedrich-Alexander Universität Erlangen-Nürnberg
+    year: 2006
+  - course: MSc in Physics
+    institution: Friedrich-Alexander Universität Erlangen-Nürnberg
+    year: 1999
 email: ""
-interests:
-- Artificial Intelligence
-- Computational Linguistics
-- Information Retrieval
-name: Nelson Bighetti
+interests: []
+name: Ralf Stubner
 organizations:
-- name: Stanford University
+- name: ""
   url: ""
-role: Professor of Artificial Intelligence
+role: Software Engineer, Consultant, Physicist
 social:
 - icon: envelope
   icon_pack: fas
   link: '#contact'
-- icon: twitter
+#- icon: twitter
+#  icon_pack: fab
+#  link: https://twitter.com/GeorgeCushen
+#- icon: google-scholar
+#  icon_pack: ai
+#  link: https://scholar.google.co.uk/citations?user=sIwtMXoAAAAJ
+- icon: stack-overflow
   icon_pack: fab
-  link: https://twitter.com/GeorgeCushen
-- icon: google-scholar
-  icon_pack: ai
-  link: https://scholar.google.co.uk/citations?user=sIwtMXoAAAAJ
+  link: https://stackoverflow.com/users/8416610/ralf-stubner
 - icon: github
   icon_pack: fab
-  link: https://github.com/gcushen
+  link: https://github.com/rstub/
+- icon: xing
+  icon_pack: fab
+  link: https://www.xing.com/profile/Ralf_Stubner2/
+- icon: linkedin
+  icon_pack: fab
+  link: https://www.linkedin.com/in/ralf-stubner
 superuser: true
 user_groups:
 - Researchers
 - Visitors
 ---
-
-Nelson Bighetti is a professor of artificial intelligence at the Stanford AI Lab. His research interests include distributed robotics, mobile computing and programmable matter. He leads the Robotic Neurobiology group, which develops self-reconfiguring robots, systems of self-organizing robots, and mobile sensor networks.
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed neque elit, tristique placerat feugiat ac, facilisis vitae arcu. Proin eget egestas augue. Praesent ut sem nec arcu pellentesque aliquet. Duis dapibus diam vel metus tempus vulputate. 
