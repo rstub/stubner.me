@@ -89,3 +89,8 @@ Inhalte unserer Seite rechtlich verfolgen.
 
 Sollten Sie auf dieser Webseite Inhalte finden, die das Urheberrecht
 verletzen, bitten wir Sie uns zu kontaktieren.
+
+Datenschutzerklärung
+--------------------
+
+Informationen zum Datenschutz finden Sie auf unserer Unterseite [Datenschutzerklärung](/privacy/).
