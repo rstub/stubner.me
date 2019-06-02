@@ -4,14 +4,17 @@ authors:
 bio: ""
 education:
   courses:
-  - course: PhD in Physics
+  - course: Doctorate in Physics
     institution: Friedrich-Alexander Universität Erlangen-Nürnberg
-    year: 2006
-  - course: MSc in Physics
+    year: 2005
+  - course: Diploma in Physics
     institution: Friedrich-Alexander Universität Erlangen-Nürnberg
     year: 1999
 email: ""
-interests: []
+interests:
+- Efficient Architectures and Algorithms
+- Monte Carlo Simulations 
+- Parallel and GPU-Computation
 name: Ralf Stubner
 organizations:
 - name: ""
@@ -40,7 +43,7 @@ social:
   icon_pack: fab
   link: https://www.linkedin.com/in/ralf-stubner
 superuser: true
-user_groups:
-- Researchers
-- Visitors
+user_groups: []
 ---
+
+
