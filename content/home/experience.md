@@ -20,7 +20,7 @@ date_format = "2006"
 [[experience]]
   title = "Software Engineer and Consultant"
   company = "Freelancer"
-  company_url = ""
+  company_url = "https://stubner.me/"
   location = ""
   date_start = "2019-06-01"
   date_end = ""
