@@ -1,0 +1,56 @@
+==================================================================
+https://keybase.io/rstub
+--------------------------------------------------------------------
+
+I hereby claim:
+
+  * I am an admin of https://stubner.me
+  * I am rstub (https://keybase.io/rstub) on keybase.
+  * I have a public key ASCQTDolJMo9tZEFgPOlq0qegsuIqY7U7c3K7Cq74tXE0Ao
+
+To do so, I am signing this object:
+
+{
+  "body": {
+    "key": {
+      "eldest_kid": "01014c7641bc7133f30da88eb9fa92f1138fe3d7bb2266c9c8c502f5b1494a287dcb0a",
+      "host": "keybase.io",
+      "kid": "0120904c3a2524ca3db5910580f3a5ab4a9e82cb88a98ed4edcdcaec2abbe2d5c4d00a",
+      "uid": "2c03fc48e826ed735a674859281e0219",
+      "username": "rstub"
+    },
+    "merkle_root": {
+      "ctime": 1559974595,
+      "hash": "23c4ae86fa18ed8073c645e206d2637acbc5805a4217727e7afaacaa6469d5f5b4b3140497999afe5c532e38263e4142d4d2ed74eaf6b6ef7e802062c788cad2",
+      "hash_meta": "b7a8828df04af201710c756479f6d9435b24197da3309223ef002b69ce9f0bd3",
+      "seqno": 5531907
+    },
+    "service": {
+      "entropy": "SG8L9ypgbjv55fwQaoX9UjMh",
+      "hostname": "stubner.me",
+      "protocol": "https:"
+    },
+    "type": "web_service_binding",
+    "version": 2
+  },
+  "client": {
+    "name": "keybase.io go client",
+    "version": "4.0.0"
+  },
+  "ctime": 1559974680,
+  "expire_in": 504576000,
+  "prev": "286bb86a871d96abd49b897f9d48f5cf08a19fb4cd838871f80ba810bf36534c",
+  "seqno": 13,
+  "tag": "signature"
+}
+
+which yields the signature:
+
+hKRib2R5hqhkZXRhY2hlZMOpaGFzaF90eXBlCqNrZXnEIwEgkEw6JSTKPbWRBYDzpatKnoLLiKmO1O3Nyuwqu+LVxNAKp3BheWxvYWTESpcCDcQgKGu4aocdlqvUm4l/nUj1zwihn7TNg4hx+AuoEL82U0zEIOZCxKEm5no4p+VpItyUxWzHt6KKIOWie5atHAQUyK5cAgHCo3NpZ8RARZ3HsIkir0Q5eJW6NmFXMwObetzNPJEvmCsKSzd09hX7dXZA9N2eBWyIHIt86yzhP+kj+71tQPSaOSl67rCMA6hzaWdfdHlwZSCkaGFzaIKkdHlwZQildmFsdWXEINboUp/rMmL7RN80UgzTsCWU4jMIzvpmcJI5QWYKLA+Ho3RhZ80CAqd2ZXJzaW9uAQ==
+
+And finally, I am proving ownership of this host by posting or
+appending to this document.
+
+View my publicly-auditable identity here: https://keybase.io/rstub
+
+==================================================================
