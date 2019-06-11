@@ -26,5 +26,14 @@ subtitle = ""
   icon_pack = "fa"
   name = "[R Weekly](https://www.rweekly.org/)"
 
+[[feature]]
+  icon = "archive"
+  icon_pack = "fas"
+  name = "[CTAN](https://www.ctan.org/)"
+
+[[feature]]
+  icon = "archive"
+  icon_pack = "fas"
+  name = "[CRAN](https://cran.r-project.org/)"
 
 +++
