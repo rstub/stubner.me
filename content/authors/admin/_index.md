@@ -52,8 +52,8 @@ user_groups: []
 I am a freelance software engineer and consultant after having worked in such roles for over ten years in the financial and IT industry.
 Before that I earned a Diploma and Doctorate in Physics at the Friedrich-Alexander Universität Erlangen-Nürnberg.
 
-I like to analyse, design and build complex systems keeping the KISS principle in mind.
+I like to analyze, design and build complex systems keeping the KISS principle in mind.
 It is important to me to understand the business domain I am working with.
-Agile software development using tools like continous delivery are closer to my heart than big design up front and the waterfall method.
+Agile software development using tools like continuous delivery are closer to my heart than big design up front and the waterfall method.
 Although as a trained software architect I know that *some* up-front design is generally necessary.
 I also like working remotely.
