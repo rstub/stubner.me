@@ -1,0 +1,79 @@
+---
+title: 'RcppArrayFire v0.1.0: Sparse Matrices and support for Mac OS'
+author: Ralf Stubner
+date: '2019-06-28'
+slug: rcpparrayfire-v0-1-0-sparse-matrices-and-support-for-macos
+categories: []
+tags:
+  - R
+  - ArrayFire
+  - GPU
+image:
+  caption: ''
+  focal_point: ''
+---
+
+The [RcppArrayFire package](http://www.daqana.org/rcpparrayfire/) provides an
+interface from R to and from the [ArrayFire library](http://www.arrayfire.com/),
+an open source library that can make use of GPUs and other hardware accelerators
+via CUDA or OpenCL. In order to use RcppArrayFire you will need the ArrayFire
+library and header files which you can [build from source](https://github.com/arrayfire/arrayfire)
+or use up-stream's [binary installer](http://arrayfire.org/docs/installing.htm).
+See [previous](https://blog.daqana.com/en/rcpparrayfire-0-0-2_en/) [articles](http://gallery.rcpp.org/articles/introducing-rcpparrayfire/) for a general introduction.
+
+Version 0.1.0 brings to important changes: Support for sparse matrices and Mac OS
+
+## Support for sparse matrices
+
+RcppArrayFire was started by Kazuki Fukui under the name [RcppFire](https://github.com/kafku/RcppFire). 
+Last September he came back to offer sparse matrix support in
+[#9](https://github.com/daqana/rcpparrayfire/pull/9). The `typed_array<af::dtype>`
+class was changed to `typed_array<af::dtype, af::storage>` with `AF_STORAGE_DENSE`
+as default value. Existing code will work unchanged with using dense matrices, but you
+can now define a function that expects a sparse matrix 
+
+```{Rcpp, eval=FALSE}
+//[[Rcpp::depends(RcppArrayFire)]]
+#include <RcppArrayFire.h>
+//[[Rcpp::export]]
+af::array times_two(const RcppArrayFire::typed_array<f32, AF_STORAGE_CSR>& x) {
+    return 2 * x;
+}
+```
+
+and returns it multiplied by two:
+
+```{r, eval=FALSE}
+library('Matrix')
+x <- as(matrix(c(1, 0, 0, 2, 3,
+                 0, 0, 1, 0, 2), 2, 5), 'dgRMatrix')
+times_two(x)
+
+## 2 x 5 sparse Matrix of class "dgRMatrix"
+##               
+## [1,] 2 . 6 . .
+## [2,] . 4 . 2 4
+```
+
+Besides such simplistic operations, you can use `af::matmul` to multiply
+[sparse-dense matrices](http://arrayfire.org/docs/group__sparse__func.htm).
+Currently only `f32` (`float`) and `f64` (`double`) are supported and mapped to
+`numeric` matrices, since the `Matrix` package does not support complex sparse
+matrices. The storage types `CSR`, `CSC` and `COO` are supported via `dgRMatrix`,
+`dgCMatrix` and `dgTMatrix`.
+
+
+## Support for Mac OS 
+
+This was started more than a year ago (full history here: 
+[#5](https://github.com/daqana/rcpparrayfire/pull/5)), but it seemed impossible
+to link with ArrayFire's unified back-end `libaf`. I even asked on
+[stackoverflow](https://stackoverflow.com/q/48705490/8416610), but
+that brought me only a [tumbleweed badge](https://stackoverflow.com/help/badges/63/tumbleweed?userid=8416610).
+
+The `macos` branch started to gather dust when [François Cocquemas](https://github.com/fcocquemas)
+opened issue [#14](https://github.com/daqana/rcpparrayfire/issues/14) saying that (unsurprisingly)
+neither the `master` nor the `macos` branch worked with R 3.6.0, but that combining `configure`
+from `master` with the `macos` branch did work. This was surprising, since  `configure`
+from `master` did use the unified back-end. In the end I only had to handle a few conflicts
+upon merging to get RcppArrayFire fully supported on Mac OS!
