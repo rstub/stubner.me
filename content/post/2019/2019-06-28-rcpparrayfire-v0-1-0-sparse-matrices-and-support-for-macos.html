@@ -1,0 +1,71 @@
+---
+title: 'RcppArrayFire v0.1.0: Sparse Matrices and support for Mac OS'
+author: Ralf Stubner
+date: '2019-06-28'
+slug: rcpparrayfire-v0-1-0-sparse-matrices-and-support-for-macos
+categories: []
+tags:
+  - R
+  - ArrayFire
+  - GPU
+  - package
+image:
+  caption: ''
+  focal_point: ''
+---
+
+
+
+<p>The <a href="http://www.daqana.org/rcpparrayfire/">RcppArrayFire package</a> provides an
+interface from R to and from the <a href="http://www.arrayfire.com/">ArrayFire library</a>,
+an open source library that can make use of GPUs and other hardware accelerators
+via CUDA or OpenCL. In order to use RcppArrayFire you will need the ArrayFire
+library and header files which you can <a href="https://github.com/arrayfire/arrayfire">build from source</a>
+or use up-stream’s <a href="http://arrayfire.org/docs/installing.htm">binary installer</a>.
+See <a href="https://blog.daqana.com/en/rcpparrayfire-0-0-2_en/">previous</a> <a href="http://gallery.rcpp.org/articles/introducing-rcpparrayfire/">articles</a> for a general introduction.</p>
+<p>Version 0.1.0 brings to important changes: Support for sparse matrices and Mac OS</p>
+<div id="support-for-sparse-matrices" class="section level2">
+<h2>Support for sparse matrices</h2>
+<p>RcppArrayFire was started by Kazuki Fukui under the name <a href="https://github.com/kafku/RcppFire">RcppFire</a>.
+Last September he came back to offer sparse matrix support in
+<a href="https://github.com/daqana/rcpparrayfire/pull/9">#9</a>. The <code>typed_array&lt;af::dtype&gt;</code>
+class was changed to <code>typed_array&lt;af::dtype, af::storage&gt;</code> with <code>AF_STORAGE_DENSE</code>
+as default value. Existing code will work unchanged with using dense matrices, but you
+can now define a function that expects a sparse matrix</p>
+<pre class="cpp"><code>//[[Rcpp::depends(RcppArrayFire)]]
+#include &lt;RcppArrayFire.h&gt;
+//[[Rcpp::export]]
+af::array times_two(const RcppArrayFire::typed_array&lt;f32, AF_STORAGE_CSR&gt;&amp; x) {
+    return 2 * x;
+}</code></pre>
+<p>and returns it multiplied by two:</p>
+<pre class="r"><code>library(&#39;Matrix&#39;)
+x &lt;- as(matrix(c(1, 0, 0, 2, 3,
+                 0, 0, 1, 0, 2), 2, 5), &#39;dgRMatrix&#39;)
+times_two(x)
+
+## 2 x 5 sparse Matrix of class &quot;dgRMatrix&quot;
+##               
+## [1,] 2 . 6 . .
+## [2,] . 4 . 2 4</code></pre>
+<p>Besides such simplistic operations, you can use <code>af::matmul</code> to multiply
+<a href="http://arrayfire.org/docs/group__sparse__func.htm">sparse-dense matrices</a>.
+Currently only <code>f32</code> (<code>float</code>) and <code>f64</code> (<code>double</code>) are supported and mapped to
+<code>numeric</code> matrices, since the <code>Matrix</code> package does not support complex sparse
+matrices. The storage types <code>CSR</code>, <code>CSC</code> and <code>COO</code> are supported via <code>dgRMatrix</code>,
+<code>dgCMatrix</code> and <code>dgTMatrix</code>.</p>
+</div>
+<div id="support-for-mac-os" class="section level2">
+<h2>Support for Mac OS</h2>
+<p>This was started more than a year ago (full history here:
+<a href="https://github.com/daqana/rcpparrayfire/pull/5">#5</a>), but it seemed impossible
+to link with ArrayFire’s unified back-end <code>libaf</code>. I even asked on
+<a href="https://stackoverflow.com/q/48705490/8416610">stackoverflow</a>, but
+that brought me only a <a href="https://stackoverflow.com/help/badges/63/tumbleweed?userid=8416610">tumbleweed badge</a>.</p>
+<p>The <code>macos</code> branch started to gather dust when <a href="https://github.com/fcocquemas">François Cocquemas</a>
+opened issue <a href="https://github.com/daqana/rcpparrayfire/issues/14">#14</a> saying that (unsurprisingly)
+neither the <code>master</code> nor the <code>macos</code> branch worked with R 3.6.0, but that combining <code>configure</code>
+from <code>master</code> with the <code>macos</code> branch did work. This was surprising, since <code>configure</code>
+from <code>master</code> did use the unified back-end. In the end I only had to handle a few conflicts
+upon merging to get RcppArrayFire fully supported on Mac OS!</p>
+</div>
