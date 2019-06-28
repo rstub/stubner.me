@@ -16,7 +16,8 @@ Parchimer Allee 85f,\
 Deutschland
 
 **Tel.:** +49 (160) 4722080\
-**E-Mail:** <info@stubner.me>
+**E-Mail:** <info@stubner.me>\
+**USt-IdNr.:** DE323926705
 
 Quelle: Erstellt mit dem [Impressum
 Generator](https://www.adsimple.de/impressum-generator/ "Impressum Generator Deutschland")
