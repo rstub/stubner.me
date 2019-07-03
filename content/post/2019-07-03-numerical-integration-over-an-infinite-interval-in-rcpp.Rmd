@@ -15,13 +15,13 @@ image:
   focal_point: ''
 ---
 
-On Stack Overflow the [question](https://stackoverflow.com/q/56832560/8416610) was asked how to calculate the integral
+On Stack Overflow the [question](https://stackoverflow.com/q/56832560/8416610) was asked how to numerically integrate a function over a infinite range in Rcpp, e.g. by using [RcppNumerical](https://github.com/yixuan/RcppNumerical). As an example, the integral
 
 $$
 \int_{-\infty}^{\infty} \mathrm{d}x \exp\left(-\frac{(x-\mu)^4}{2}\right)
 $$
 
-in Rcpp, e.g. by using [RcppNumerical](https://github.com/yixuan/RcppNumerical). In principle this should be straight forward. One defines a class that extends `Numer::Func` for the function and an interface function that calls `Numer::integrate` on it:
+was given. In principle this should be straight forward. One defines a class that extends `Numer::Func` for the function and an interface function that calls `Numer::integrate` on it:
 
 ```{Rcpp}
 // [[Rcpp::depends(RcppEigen)]]
@@ -55,14 +55,14 @@ This works fine for finite ranges:
 integrate_exp4(4, 0, 4)
 ```
 
-But produces `NA` for infinte ones:
+But produces `NA` for infinite ones:
 
 ```{r}
 integrate_exp4(4, -Inf, Inf)
 ```
 
 
-This is disappointing, since base R's `integrate()` handles this case without problems:
+This is disappointing, since base R's `integrate()` handles this without problems:
 
 ```{r}
 exp4 <- function(x, mean) exp(-(x - mean)^4 / 2)
@@ -73,15 +73,20 @@ integrate(exp4, -Inf, Inf, mean = 4)
 In this particular case the problem can be easily solved in two different ways. First, the integral can be expressed in terms of the [Gamma function]():
 
 $$
+\int_{-\infty}^{\infty} \mathrm{d}x \exp\left(-\frac{(x-\mu)^4}{2}\right) = 
 2^{-\frac{3}{4}} \Gamma\left(\frac{1}{4}\right)  \approx 2.155801
 $$
 
-Second, since the function is almost zero almost everywhere, it is suffcient to integrate over a small region around `mean` to get a reasonable approviamtion for the integral over the infinite range:
+Second, the function is almost zero almost everywhere:
 
 ```{r integrant_plot, echo=FALSE}
 par(mar = c(5, 5, 4, 2) + 0.1)
 plot(function(x) exp4(x, 4), 0, 8, ylab = expression(exp(-(x-mu)^4/2)), main = "Integrant for mean = 4")
 ```
+
+It is therefore sufficient to integrate over a small region around `mean` to get a reasonable approximation for the integral over the infinite range:
+
+
 ```{r}
 integrate_exp4(4, 1, 7)
 ```
@@ -103,7 +108,7 @@ How does `integrate()` handle the infinite range and can we replicate this in Rc
 
 > If one or both limits are infinite, the infinite range is mapped onto a finite interval.
 
-This is infact done by a different function from R's C-API: `Rdqagi()` instead of `Rdqags()`. In principle one could call `Rdqagi()` via Rcpp, but this is not straightforward. Fortunately, there are at least two other solutions.
+This is in fact done by a different function from R's C-API: `Rdqagi()` instead of `Rdqags()`. In principle one could call `Rdqagi()` via Rcpp, but this is not straightforward. Fortunately, there are at least two other solutions.
 
 The [GNU Scientific Library](https://www.gnu.org/software/gsl/) provides a function to [integrate over the infinte interval $(-\infty, \infty)$](https://www.gnu.org/software/gsl/doc/html/integration.html#c.gsl_integration_qagi), which can be used via the RcppGSL package:
 
@@ -145,7 +150,7 @@ $$
 \int_{-\infty}^{\infty} \mathrm{d}x f(x) = \int_0^1 \mathrm{d}t \frac{f((1-t)/t) + f(-(1-t)/t)}{t^2}
 $$
 
-Now one could write the code for the transformed function directly, but it is of course nicer to have a general solution, i.e. use a class template that can transform any function in the  desired fashion
+Now one could write the code for the transformed function directly, but it is of course nicer to have a general solution, i.e. use a class template that can transform *any function* in the  desired fashion
 
 ```{Rcpp}
 // [[Rcpp::depends(RcppEigen)]]

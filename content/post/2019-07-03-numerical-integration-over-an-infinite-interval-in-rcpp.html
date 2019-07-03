@@ -17,11 +17,11 @@ image:
 
 
 
-<p>On Stack Overflow the <a href="https://stackoverflow.com/q/56832560/8416610">question</a> was asked how to calculate the integral</p>
+<p>On Stack Overflow the <a href="https://stackoverflow.com/q/56832560/8416610">question</a> was asked how to numerically integrate a function over a infinite range in Rcpp, e.g. by using <a href="https://github.com/yixuan/RcppNumerical">RcppNumerical</a>. As an example, the integral</p>
 <p><span class="math display">\[
 \int_{-\infty}^{\infty} \mathrm{d}x \exp\left(-\frac{(x-\mu)^4}{2}\right)
 \]</span></p>
-<p>in Rcpp, e.g. by using <a href="https://github.com/yixuan/RcppNumerical">RcppNumerical</a>. In principle this should be straight forward. One defines a class that extends <code>Numer::Func</code> for the function and an interface function that calls <code>Numer::integrate</code> on it:</p>
+<p>was given. In principle this should be straight forward. One defines a class that extends <code>Numer::Func</code> for the function and an interface function that calls <code>Numer::integrate</code> on it:</p>
 <pre class="cpp"><code>// [[Rcpp::depends(RcppEigen)]]
 // [[Rcpp::depends(RcppNumerical)]]
 #include &lt;RcppNumerical.h&gt;
@@ -49,11 +49,11 @@ Rcpp::NumericVector integrate_exp4(const double &amp;mean, const double &amp;low
 <pre class="r"><code>integrate_exp4(4, 0, 4)</code></pre>
 <pre><code>##       result        error 
 ## 1.077900e+00 9.252237e-08</code></pre>
-<p>But produces <code>NA</code> for infinte ones:</p>
+<p>But produces <code>NA</code> for infinite ones:</p>
 <pre class="r"><code>integrate_exp4(4, -Inf, Inf)</code></pre>
 <pre><code>## result  error 
 ##    NaN    NaN</code></pre>
-<p>This is disappointing, since base R’s <code>integrate()</code> handles this case without problems:</p>
+<p>This is disappointing, since base R’s <code>integrate()</code> handles this without problems:</p>
 <pre class="r"><code>exp4 &lt;- function(x, mean) exp(-(x - mean)^4 / 2)
 integrate(exp4, 0, 4, mean = 4)</code></pre>
 <pre><code>## 1.0779 with absolute error &lt; 1.3e-07</code></pre>
@@ -61,10 +61,12 @@ integrate(exp4, 0, 4, mean = 4)</code></pre>
 <pre><code>## 2.155801 with absolute error &lt; 7.9e-06</code></pre>
 <p>In this particular case the problem can be easily solved in two different ways. First, the integral can be expressed in terms of the <a href="">Gamma function</a>:</p>
 <p><span class="math display">\[
+\int_{-\infty}^{\infty} \mathrm{d}x \exp\left(-\frac{(x-\mu)^4}{2}\right) = 
 2^{-\frac{3}{4}} \Gamma\left(\frac{1}{4}\right)  \approx 2.155801
 \]</span></p>
-<p>Second, since the function is almost zero almost everywhere, it is suffcient to integrate over a small region around <code>mean</code> to get a reasonable approviamtion for the integral over the infinite range:</p>
+<p>Second, the function is almost zero almost everywhere:</p>
 <p><img src="/post/2019-07-03-numerical-integration-over-an-infinite-interval-in-rcpp_files/figure-html/integrant_plot-1.png" width="672" /></p>
+<p>It is therefore sufficient to integrate over a small region around <code>mean</code> to get a reasonable approximation for the integral over the infinite range:</p>
 <pre class="r"><code>integrate_exp4(4, 1, 7)</code></pre>
 <pre><code>##       result        error 
 ## 2.155801e+00 9.926448e-13</code></pre>
@@ -84,7 +86,7 @@ integrate(integrand, lower = 0, upper = 10)</code></pre>
 <blockquote>
 <p>If one or both limits are infinite, the infinite range is mapped onto a finite interval.</p>
 </blockquote>
-<p>This is infact done by a different function from R’s C-API: <code>Rdqagi()</code> instead of <code>Rdqags()</code>. In principle one could call <code>Rdqagi()</code> via Rcpp, but this is not straightforward. Fortunately, there are at least two other solutions.</p>
+<p>This is in fact done by a different function from R’s C-API: <code>Rdqagi()</code> instead of <code>Rdqags()</code>. In principle one could call <code>Rdqagi()</code> via Rcpp, but this is not straightforward. Fortunately, there are at least two other solutions.</p>
 <p>The <a href="https://www.gnu.org/software/gsl/">GNU Scientific Library</a> provides a function to <a href="https://www.gnu.org/software/gsl/doc/html/integration.html#c.gsl_integration_qagi">integrate over the infinte interval <span class="math inline">\((-\infty, \infty)\)</span></a>, which can be used via the RcppGSL package:</p>
 <pre class="cpp"><code>// [[Rcpp::depends(RcppGSL)]]
 #include &lt;RcppGSL.h&gt;
@@ -118,7 +120,7 @@ Rcpp::NumericVector normalize_exp4_gsl(double &amp;mean) {
 <p><span class="math display">\[
 \int_{-\infty}^{\infty} \mathrm{d}x f(x) = \int_0^1 \mathrm{d}t \frac{f((1-t)/t) + f(-(1-t)/t)}{t^2}
 \]</span></p>
-<p>Now one could write the code for the transformed function directly, but it is of course nicer to have a general solution, i.e. use a class template that can transform any function in the desired fashion</p>
+<p>Now one could write the code for the transformed function directly, but it is of course nicer to have a general solution, i.e. use a class template that can transform <em>any function</em> in the desired fashion</p>
 <pre class="cpp"><code>// [[Rcpp::depends(RcppEigen)]]
 // [[Rcpp::depends(RcppNumerical)]]
 #include &lt;RcppNumerical.h&gt;
