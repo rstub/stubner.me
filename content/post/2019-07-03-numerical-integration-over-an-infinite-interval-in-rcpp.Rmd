@@ -21,7 +21,7 @@ $$
 \int_{-\infty}^{\infty} \mathrm{d}x \exp\left(-\frac{(x-\mu)^4}{2}\right)
 $$
 
-was given. In principle this should be straight forward. One defines a class that extends `Numer::Func` for the function and an interface function that calls `Numer::integrate` on it:
+was given. Using RcppNumerical is straight forward. One defines a class that extends `Numer::Func` for the function and an interface function that calls `Numer::integrate` on it:
 
 ```{Rcpp}
 // [[Rcpp::depends(RcppEigen)]]
@@ -55,7 +55,7 @@ This works fine for finite ranges:
 integrate_exp4(4, 0, 4)
 ```
 
-But produces `NA` for infinite ones:
+However, it produces `NA` for infinite ones:
 
 ```{r}
 integrate_exp4(4, -Inf, Inf)
@@ -144,7 +144,7 @@ Rcpp::NumericVector normalize_exp4_gsl(double &mean) {
 normalize_exp4_gsl(4)
 ```
 
-Alternatively, one can apply the the transformation used by GSL (and probably R) also in conjunction with RcppNumerical. To do so, one has to substitute $x = (1-t)/t$ resulting in
+Alternatively, one can apply the transformation used by GSL (and probably R) also in conjunction with RcppNumerical. To do so, one has to substitute $x = (1-t)/t$ resulting in
 
 $$
 \int_{-\infty}^{\infty} \mathrm{d}x f(x) = \int_0^1 \mathrm{d}t \frac{f((1-t)/t) + f(-(1-t)/t)}{t^2}

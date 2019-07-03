@@ -21,7 +21,7 @@ image:
 <p><span class="math display">\[
 \int_{-\infty}^{\infty} \mathrm{d}x \exp\left(-\frac{(x-\mu)^4}{2}\right)
 \]</span></p>
-<p>was given. In principle this should be straight forward. One defines a class that extends <code>Numer::Func</code> for the function and an interface function that calls <code>Numer::integrate</code> on it:</p>
+<p>was given. Using RcppNumerical is straight forward. One defines a class that extends <code>Numer::Func</code> for the function and an interface function that calls <code>Numer::integrate</code> on it:</p>
 <pre class="cpp"><code>// [[Rcpp::depends(RcppEigen)]]
 // [[Rcpp::depends(RcppNumerical)]]
 #include &lt;RcppNumerical.h&gt;
@@ -49,7 +49,7 @@ Rcpp::NumericVector integrate_exp4(const double &amp;mean, const double &amp;low
 <pre class="r"><code>integrate_exp4(4, 0, 4)</code></pre>
 <pre><code>##       result        error 
 ## 1.077900e+00 9.252237e-08</code></pre>
-<p>But produces <code>NA</code> for infinite ones:</p>
+<p>However, it produces <code>NA</code> for infinite ones:</p>
 <pre class="r"><code>integrate_exp4(4, -Inf, Inf)</code></pre>
 <pre><code>## result  error 
 ##    NaN    NaN</code></pre>
@@ -116,7 +116,7 @@ Rcpp::NumericVector normalize_exp4_gsl(double &amp;mean) {
 <pre class="r"><code>normalize_exp4_gsl(4)</code></pre>
 <pre><code>##       result        error 
 ## 2.155801e+00 3.718126e-08</code></pre>
-<p>Alternatively, one can apply the the transformation used by GSL (and probably R) also in conjunction with RcppNumerical. To do so, one has to substitute <span class="math inline">\(x = (1-t)/t\)</span> resulting in</p>
+<p>Alternatively, one can apply the transformation used by GSL (and probably R) also in conjunction with RcppNumerical. To do so, one has to substitute <span class="math inline">\(x = (1-t)/t\)</span> resulting in</p>
 <p><span class="math display">\[
 \int_{-\infty}^{\infty} \mathrm{d}x f(x) = \int_0^1 \mathrm{d}t \frac{f((1-t)/t) + f(-(1-t)/t)}{t^2}
 \]</span></p>
