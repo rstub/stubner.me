@@ -59,12 +59,12 @@ integrate(exp4, 0, 4, mean = 4)</code></pre>
 <pre><code>## 1.0779 with absolute error &lt; 1.3e-07</code></pre>
 <pre class="r"><code>integrate(exp4, -Inf, Inf, mean = 4)</code></pre>
 <pre><code>## 2.155801 with absolute error &lt; 7.9e-06</code></pre>
-<p>In this particular case the problem can be easily solved in two different ways. First, the integral can be expressed in terms of the <a href="">Gamma function</a>:</p>
+<p>In this particular case the problem can be easily solved in two different ways. First, the integral can be expressed in terms of the <a href="https://en.wikipedia.org/wiki/Gamma_function#Integration_problems">Gamma function</a>:</p>
 <p><span class="math display">\[
 \int_{-\infty}^{\infty} \mathrm{d}x \exp\left(-\frac{(x-\mu)^4}{2}\right) = 
 2^{-\frac{3}{4}} \Gamma\left(\frac{1}{4}\right)  \approx 2.155801
 \]</span></p>
-<p>Second, the function is almost zero almost everywhere:</p>
+<p>Second, the integrand is almost zero almost everywhere:</p>
 <p><img src="/post/2019-07-03-numerical-integration-over-an-infinite-interval-in-rcpp_files/figure-html/integrant_plot-1.png" width="672" /></p>
 <p>It is therefore sufficient to integrate over a small region around <code>mean</code> to get a reasonable approximation for the integral over the infinite range:</p>
 <pre class="r"><code>integrate_exp4(4, 1, 7)</code></pre>
