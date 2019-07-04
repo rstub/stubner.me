@@ -3,6 +3,8 @@ title: Using qpdfview with AUCTeX
 author: ''
 date: '2019-06-05'
 slug: using-qpdfview-with-auctex
+aliases:
+  - /post/2019/using-qpdfview-with-auctex/
 categories: []
 tags:
   - emacs
