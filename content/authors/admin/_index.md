@@ -13,7 +13,7 @@ education:
 email: ""
 interests:
 - Efficient Architectures and Algorithms
-- Monte Carlo Simulations 
+- Monte Carlo Simulations
 - Parallel and GPU-Computation
 name: Ralf Stubner
 organizations:
@@ -24,9 +24,9 @@ social:
 - icon: envelope
   icon_pack: fas
   link: '#contact'
-#- icon: twitter
-#  icon_pack: fab
-#  link: https://twitter.com/GeorgeCushen
+- icon: twitter
+  icon_pack: fab
+  link: https://twitter.com/rstub73
 #- icon: google-scholar
 #  icon_pack: ai
 #  link: https://scholar.google.co.uk/citations?user=sIwtMXoAAAAJ
