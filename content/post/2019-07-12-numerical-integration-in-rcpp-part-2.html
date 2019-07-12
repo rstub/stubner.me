@@ -1,0 +1,137 @@
+---
+title: Numerical integration over an infinite interval in Rcpp (part 2)
+author: ''
+date: '2019-07-12'
+slug: numerical-integration-in-rcpp-part-2
+abstract: In a previous post I have shown that without intervention RcppNumerical does not handle integration over infinite ranges. In this post I want to generalize the method to integrals where only one of the limits is infinite. In addition, I want to make it more user friendly.
+categories:
+  - R
+tags:
+  - R
+  - Numerics
+  - Rcpp
+image:
+  caption: ''
+  focal_point: ''
+---
+
+
+
+<p>In a <a href="https://stubner.me/2019/07/numerical-integration-in-rcpp/">previous post</a> I have shown that without intervention <a href="http://cran.r-project.org/package=RcppNumerical">RcppNumerical</a> does not handle integration over infinite ranges. In this post I want to generalize the method to integrals where only one of the limits is infinite. In addition, I want to make it more user friendly, since I would like to write something like</p>
+<pre class="cpp"><code>// [[Rcpp::depends(RcppEigen)]]
+// [[Rcpp::depends(RcppNumerical)]]
+#include &lt;RcppNumerical.h&gt;
+
+namespace rstub {
+// [...]
+} 
+
+class exp4: public Numer::Func {
+private:
+    double mean;
+public:
+    exp4(double mean_) : mean(mean_) {}
+    
+    double operator()(const double&amp; x) const {
+        return exp(-pow(x - mean, 4) / 2);
+    }
+};
+
+// [[Rcpp::export]]
+Rcpp::NumericVector integrate_exp4(const double &amp;mean, double lower, double upper) {
+    exp4 function(mean);
+    double err_est;
+    int err_code;
+    double result = rstub::integrate(function, lower, upper, err_est, err_code);
+    return Rcpp::NumericVector::create(Rcpp::Named(&quot;result&quot;) = result,
+                                       Rcpp::Named(&quot;error&quot;) = err_est);
+}</code></pre>
+<p>and have it correctly handle different input:</p>
+<pre class="r"><code>rbind(
+  integrate_exp4(4,    0,   4),
+  integrate_exp4(4, -Inf, Inf),
+  integrate_exp4(4,    3, Inf),
+  integrate_exp4(4, -Inf,   3)
+)</code></pre>
+<pre><code>##         result        error
+## [1,] 1.0779003 9.252237e-08
+## [2,] 2.1558005 1.439771e-06
+## [3,] 1.9903282 4.250105e-11
+## [4,] 0.1654723 6.251315e-14</code></pre>
+<p>The only differences in the above code to the sample code from the <a href="https://stubner.me/2019/07/numerical-integration-in-rcpp/">previous post</a> is the usage or <code>rstub::integrate</code> instead of <code>Numer:integrate</code> and the as yet unspecified <code>rstub</code> namespace. What is needed in that namespace? First, we will need a template class that does the necessary variable substitutions. In the case where both limits are infinite, we use as before <span class="math inline">\(x = (1-t)/t\)</span> resulting in</p>
+<p><span class="math display">\[
+\int_{-\infty}^{\infty} \mathrm{d}x f(x) = \int_0^1 \mathrm{d}t \frac{f((1-t)/t) + f(-(1-t)/t)}{t^2}
+\]</span></p>
+<p>If only one of the limits is infinite, we use the substitutions <span class="math inline">\(x = a + (1-t)/t\)</span> and <span class="math inline">\(x = b - (1-t)/t\)</span> resulting in</p>
+<p><span class="math display">\[
+\int_{a}^{\infty} \mathrm{d}x f(x) = \int_0^1 \mathrm{d}t \frac{f(a+(1-t)/t)}{t^2}
+\]</span></p>
+<p>and</p>
+<p><span class="math display">\[
+\int_{-\infty}^{b} \mathrm{d}x f(x) = \int_0^1 \mathrm{d}t \frac{f(b-(1-t)/t)}{t^2}
+\]</span></p>
+<p>For the C++ template class aggregation is used instead of inheritance, allowing to easily specify the limits:</p>
+<pre class="cpp"><code>template&lt;class T&gt; 
+class transform_infinite: public Numer::Func {
+private:
+    T func;
+    double lower;
+    double upper;
+public:
+    transform_infinite(T _func, double _lower, double _upper) : 
+                      func(_func), lower(_lower), upper(_upper) {}
+
+    double operator() (const double&amp; t) const {
+        double x = (1 - t) / t;
+        bool upper_finite = (upper &lt;  std::numeric_limits&lt;double&gt;::infinity());
+        bool lower_finite = (lower &gt; -std::numeric_limits&lt;double&gt;::infinity());
+        if (upper_finite &amp;&amp; lower_finite) {
+            Rcpp::stop(&quot;At least on limit must be infinite.&quot;);
+        } else if (lower_finite) {
+            return func(lower + x) / pow(t, 2);
+        } else if (upper_finite) {
+            return func(upper - x) / pow(t, 2);
+        } else {
+            return (func(x) + func(-x)) / pow(t, 2);
+        }
+    }
+};</code></pre>
+<p>Finally we need a wrapper function for <code>Numer::integrate</code> which checks if both limits are finite or not:</p>
+<pre class="cpp"><code>using Numer::Integrator;
+template&lt;class T&gt;
+double integrate(const T&amp; f, double lower, double upper,
+                 double&amp; err_est, int&amp; err_code,
+                 const int subdiv = 100, const double&amp; eps_abs = 1e-8, const double&amp; eps_rel = 1e-6,
+                 const Integrator&lt;double&gt;::QuadratureRule rule = Integrator&lt;double&gt;::GaussKronrod41) {
+    
+    if (upper == lower) {
+        err_est = 0.0;
+        err_code = 0;
+        return 0.0;
+    }
+    if (std::abs(upper) &lt; std::numeric_limits&lt;double&gt;::infinity() &amp;&amp; 
+        std::abs(lower) &lt; std::numeric_limits&lt;double&gt;::infinity()) {
+        return Numer::integrate(f, lower, upper, err_est, err_code, subdiv, eps_abs, eps_rel, rule);
+    } else {
+        double sign = 1.0;
+        if (upper &lt; lower) {
+            std::swap(upper, lower);
+            sign = -1.0;
+        }
+        transform_infinite&lt;T&gt; g(f, lower, upper);
+        return sign * Numer::integrate(g, 0.0, 1.0, err_est, err_code, subdiv, eps_abs, eps_rel, rule);
+    }
+}</code></pre>
+<p>If both limits are finite, <code>Numer::integrate</code> is used directly. Otherwise the function is transformed and <code>Numer::integrate</code> is used with adjusted range. In addition, it is first checked that the upper limit is actually larger than the lower limit. If this is not the case, one of the properties of integration is used to swap the limits and change the sign:</p>
+<p><span class="math display">\[
+\int_{a}^{b} \mathrm{d}x f(x) = -\int_{b}^{a} \mathrm{d}x f(x)
+\]</span></p>
+<p>Thereby we get the correct result even when the limits have been exchanged:</p>
+<pre class="r"><code>rbind(
+  integrate_exp4(4,    3, Inf),
+  integrate_exp4(4,  Inf,   3)
+)</code></pre>
+<pre><code>##         result        error
+## [1,]  1.990328 4.250105e-11
+## [2,] -1.990328 4.250105e-11</code></pre>
+<p>In the end we needed on template class and one template function, which could be put into a separate header file, to generalize <code>Numer::integrate</code> for integration over an infinite interval.</p>
