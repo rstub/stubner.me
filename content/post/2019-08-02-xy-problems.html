@@ -1,0 +1,138 @@
+---
+title: XY problems
+author: ''
+date: '2019-08-02'
+slug: xy-problems
+abstract: One can easily fall for an XY problem even when one tries to avoid it.
+categories:
+  - R
+tags:
+  - C++
+  - R
+  - Rcpp
+image:
+  caption: ''
+  focal_point: ''
+---
+
+
+
+<p>The so called <a href="https://en.wikipedia.org/wiki/XY_problem">XY problem</a> is a classical situation on Q&amp;A sites such as <a href="https://stackoverflow.com/">stackoverflow</a>. While answering a <a href="https://stackoverflow.com/q/57310889/8416610">recent question</a> there I thought to have spotted such a case and addressed the actual problem. As it turns out, I had stopped to early when going for the root cause.</p>
+<p>The question asker wanted to speed up the evaluation of <code>pmax(x, 0)</code> for an integer vector <code>x</code> by using the identity <code>pmax(x, 0) = (x + abs(x)) / 2</code> and going to C++ with the help of Rcpp:</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+IntegerVector do_pmax0_abs_int(IntegerVector x) {
+  R_xlen_t n = x.length();
+  IntegerVector out(clone(x));
+  for (R_xlen_t i = 0; i &lt; n; ++i) {
+    int oi = out[i];
+    out[i] += abs(oi); // integer overflow possible!
+    out[i] /= 2;
+  }
+  return out;
+}</code></pre>
+<p>The issue with this initial solution is the potential for an integer overflow for values larger than half the maximum size of a 32bit integer, i.e. <span class="math inline">\(2^{30} = 1,073,741,824\)</span>, resulting in negative results:</p>
+<pre class="r"><code>set.seed(42)
+ints &lt;- as.integer(runif(1e6, -.Machine$integer.max, .Machine$integer.max))
+head(ints)</code></pre>
+<pre><code>## [1] 1781578390 1877224605 -918523703 1419261746  608792367   82016476</code></pre>
+<pre class="r"><code>do_pmax0_abs_int(head(ints))</code></pre>
+<pre><code>## [1] -365905258 -270259043          0 -728221902  608792367   82016476</code></pre>
+<p>So the original question was how to “quickly determine the approximate maximum of an integer vector”, in particular whether or not the maximum of the integers is not larger than 1,073,741,824.</p>
+<p>Reading this question I realized that finding this approximate maximum would require scanning the vector linearly with the potential for an early exit. In the worst case we would compare every vector element with some fixed number, which is exactly what we wanted to avoid in the first place! In addition, it was unclear to me how one could make use of this approximate maximum. On the other hand, it is quite easy to fix the potential integer overflow by using a larger integer type for intermediate results:</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+using namespace Rcpp;
+
+// [[Rcpp::plugins(cpp11)]]
+// [[Rcpp::export]]
+IntegerVector do_pmax0_abs_int64(IntegerVector x) {
+    R_xlen_t n = x.length();
+    IntegerVector out = no_init(n);
+    for (R_xlen_t i = 0; i &lt; n; ++i) {
+        int64_t oi = x[i];
+        oi += std::abs(oi);
+        out[i] = static_cast&lt;int&gt;(oi / 2);
+    }
+    return out;
+}</code></pre>
+<p>Since this version skips the initialization of the output vector, it is faster than the original solution and works correctly for for large integers:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">pmax(ints, 0)</td>
+<td align="right">10ms</td>
+<td align="right">14.19ms</td>
+<td align="right">73.56753</td>
+<td align="right">15.34MB</td>
+</tr>
+<tr class="even">
+<td align="left">do_pmax0_abs_int(ints)</td>
+<td align="right">1.85ms</td>
+<td align="right">1.99ms</td>
+<td align="right">484.77446</td>
+<td align="right">3.83MB</td>
+</tr>
+<tr class="odd">
+<td align="left">do_pmax0_abs_int64(ints)</td>
+<td align="right">1.28ms</td>
+<td align="right">1.36ms</td>
+<td align="right">699.69546</td>
+<td align="right">3.82MB</td>
+</tr>
+</tbody>
+</table>
+<p><img src="/post/2019-08-02-xy-problems_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>At this point I stopped and posted my answer, even though I should have looked at at least two other things. First, why does <code>pmax</code> uses so much more memory? The reason is a classical error when working with R: <code>0</code> is not an integer but a numeric. To compare with the integer one should use <code>0L</code>. This reduces memory consumption and run time, but the latter is still larger than for the C++ solutions.</p>
+<p>Second and more importantly, is the mathematical trick from the beginning really needed? Can one not simply traverse the vector and take the maximum for each element compared to zero?</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+using namespace Rcpp;
+
+// [[Rcpp::plugins(cpp11)]]
+// [[Rcpp::export]]
+IntegerVector do_pmax0_int(IntegerVector x) {
+    IntegerVector out = no_init(x.length());
+    std::transform(x.cbegin(), x.cend(), out.begin(), 
+                   [](int y){return std::max(y, 0);});
+    return out;
+}</code></pre>
+<p>It turns out that this is actually the fastest method:</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">do_pmax0_int(ints)</td>
+<td align="right">2.09ms</td>
+<td align="right">2.2ms</td>
+<td align="right">440.7702</td>
+<td align="right">3.82MB</td>
+</tr>
+<tr class="even">
+<td align="left">do_pmax0_abs_int64(ints)</td>
+<td align="right">2.59ms</td>
+<td align="right">2.72ms</td>
+<td align="right">355.4475</td>
+<td align="right">3.82MB</td>
+</tr>
+</tbody>
+</table>
+<p><img src="/post/2019-08-02-xy-problems_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p>While avoiding the first level XY problem in the question, I initially did not notice the second level XY problem.</p>
