@@ -15,7 +15,7 @@ image:
   focal_point: ''
 ---
 
-The so called [XY problem](https://en.wikipedia.org/wiki/XY_problem) is a classical situation on Q&A sites such as [stackoverflow](https://stackoverflow.com/). While answering a [recent question](https://stackoverflow.com/q/57310889/8416610) there I thought to have spotted such a case and addressed the actual problem. As it turns out, I had stopped to early when going for the root cause.
+The so called [XY problem](https://en.wikipedia.org/wiki/XY_problem) is a classical situation on Q&A sites such as [stackoverflow](https://stackoverflow.com/). While answering a [recent question](https://stackoverflow.com/q/57310889/8416610) there I thought to have spotted such a case and addressed the actual problem. As it turns out, I had stopped too early when going for the root cause.
 
 The question asker wanted to speed up the evaluation of `pmax(x, 0)` for an integer vector `x` by using the identity `pmax(x, 0) = (x + abs(x)) / 2` and going to C++ with the help of Rcpp:
 

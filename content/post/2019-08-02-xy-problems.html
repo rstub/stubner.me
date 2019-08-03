@@ -17,7 +17,7 @@ image:
 
 
 
-<p>The so called <a href="https://en.wikipedia.org/wiki/XY_problem">XY problem</a> is a classical situation on Q&amp;A sites such as <a href="https://stackoverflow.com/">stackoverflow</a>. While answering a <a href="https://stackoverflow.com/q/57310889/8416610">recent question</a> there I thought to have spotted such a case and addressed the actual problem. As it turns out, I had stopped to early when going for the root cause.</p>
+<p>The so called <a href="https://en.wikipedia.org/wiki/XY_problem">XY problem</a> is a classical situation on Q&amp;A sites such as <a href="https://stackoverflow.com/">stackoverflow</a>. While answering a <a href="https://stackoverflow.com/q/57310889/8416610">recent question</a> there I thought to have spotted such a case and addressed the actual problem. As it turns out, I had stopped too early when going for the root cause.</p>
 <p>The question asker wanted to speed up the evaluation of <code>pmax(x, 0)</code> for an integer vector <code>x</code> by using the identity <code>pmax(x, 0) = (x + abs(x)) / 2</code> and going to C++ with the help of Rcpp:</p>
 <pre class="cpp"><code>#include &lt;Rcpp.h&gt;
 using namespace Rcpp;
