@@ -33,7 +33,7 @@ date_format = "2006"
   location = ""
   date_start = "2019-06-01"
   date_end = "2019-12-31"
-  description = ""
+  description = """Helping companies to make efficient use of the R ecosystem."""
 
 [[experience]]
   title = "Senior Software Engineer and Trainer"
