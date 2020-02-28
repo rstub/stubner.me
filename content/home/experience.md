@@ -19,7 +19,7 @@ date_format = "2006"
 #   Begin/end multi-line descriptions with 3 quotes `"""`.
 [[experience]]
   title = "Solution Engineer"
-  company = "RStudio, Inc."
+  company = "RStudio, PBC"
   company_url = "https://rstudio.com/"
   location = ""
   date_start = "2020-01-01"
