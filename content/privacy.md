@@ -166,23 +166,6 @@ geregelt wird. Mehr Informationen dazu finden Sie auf
 Mehr Informationen zum Datenschutz bei Cloudflare finden Sie auf
 [https://www.cloudflare.com/de-de/privacypolicy/](https://www.cloudflare.com/de-de/privacypolicy/?tid=311102532).
 
-Google Fonts Datenschutzerklärung
----------------------------------
-
-Wir verwenden Google Fonts der Firma Google Inc. (1600 Amphitheatre
-Parkway Mountain View, CA 94043, USA) auf unserer Webseite. Die
-Verwendung von Google Fonts erfolgt ohne Authentisierung und es werden
-keine Cookies and die Google Fonts API gesendet. Sollten Sie ein Konto
-bei Google haben, werden keine Ihrer Google-Kontodaten an Google während
-der Nutzung von Google Fonts übermittelt. Google erfasst lediglich die
-Nutzung von CSS und der verwendeten Fonts und speichert diese Daten
-sicher. Mehr zu diesen und weiteren Fragen finden Sie auf
-[https://developers.google.com/fonts/faq?tid=311102532](https://developers.google.com/fonts/faq).
-
-Welche Daten von Google erfasst werden und wofür diese Daten verwendet
-werden, können Sie auf
-<https://www.google.com/intl/de/policies/privacy/> nachlesen.
-
 Quelle: Erstellt mit dem [Datenschutz
 Generator](https://www.adsimple.de/datenschutz-generator/ "Datenschutz Generator Deutschland")
 von AdSimple in Kooperation mit
