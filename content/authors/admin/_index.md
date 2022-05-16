@@ -45,6 +45,10 @@ social:
 - icon: keybase
   icon_pack: fab
   link: https://keybase.io/rstub
+- icon: mastodon
+  icon_pack: fab
+  link: https://mastodon.social/@rstub
+  rel: me
 superuser: true
 user_groups: []
 ---
