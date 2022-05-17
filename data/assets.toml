@@ -22,11 +22,11 @@
 [js.isotope]
   version = "3.0.6"
   sri = "sha256-CBrpuqrMhXwcLLUd5tvQ4euBHCdh7wGlDfNz8vbu/iI="
-  url = "https://cdn.jsdelivr.net/npm/isotope-layout@%s/js/isotope.min.js"
+  url = "https://cdn.jsdelivr.net/npm/isotope-layout@%s/dist/isotope.pkgd.min.js"
 [js.imagesLoaded]
   version = "4.1.4"
   sri = "sha256-lqvxZrPLtfffUl2G/e7szqSvPBILGbwmsGE1MKlOi0Q="
-  url = "https://cdn.jsdelivr.net/npm/imagesloaded@%s/imagesloaded.min.js"
+  url = "https://cdn.jsdelivr.net/npm/imagesloaded@%s/imagesloaded.pkgd.min.js"
 [js.autotrack]
   version = "2.4.1"
   sri = "sha256-vOtzmT0JTEyCHHVxkhEDvcjAXpCCxPxRPSRDWNU1k9s="
