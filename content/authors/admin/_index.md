@@ -47,13 +47,13 @@ social:
   link: https://keybase.io/rstub
 - icon: mastodon
   icon_pack: fab
-  link: https://mastodon.social/@rstub
+  link: https://digitalcourage.social/@rstub
   rel: me
 superuser: true
 user_groups: []
 ---
 
-I am a solution engineer at [RStudio](https://rstudio.com/) after having worked in engineering and consulting roles for over ten years in the financial and IT industry.
+I am a solutions engineer at [Posit PBC](https://posit.co/) (f.k.a. [RStudio](https://rstudio.com/)) after having worked in engineering and consulting roles for over ten years in the financial and IT industry.
 Before that I earned a Diploma and Doctorate in Physics at the Friedrich-Alexander Universität Erlangen-Nürnberg.
 
 I like to analyze, design and build complex systems keeping the KISS principle in mind.

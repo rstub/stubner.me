@@ -18,9 +18,9 @@ date_format = "2006"
 #   Leave `date_end` empty if it's your current employer.
 #   Begin/end multi-line descriptions with 3 quotes `"""`.
 [[experience]]
-  title = "Solution Engineer"
-  company = "RStudio, PBC"
-  company_url = "https://rstudio.com/"
+  title = "Solutions Engineer"
+  company = "Posit Software, PBC formarly RStudio, PBC"
+  company_url = "https://posit.co/"
   location = ""
   date_start = "2020-01-01"
   date_end = ""
