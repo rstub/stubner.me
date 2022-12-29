@@ -1,0 +1,146 @@
+---
+title: Roulette-wheel selection for dqrng
+author: ''
+date: '2022-12-29'
+slug: roulette-wheel-selection-for-dqrng
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+bibliography: references.bib
+---
+
+
+
+<p>There is a long standing issue with my {dqrng} package: <a href="https://github.com/daqana/dqrng/issues/18">weighted sampling</a>. Since implementing fast un-weighted sampling methods quite some time ago, I have now started looking into possibilities for weighted sampling.</p>
+<p>The issue contains a reference to a blog post that is by now only available <a href="https://web.archive.org/web/20220522085505/https://thoughts.johnbnelson.com/fast_proportional_selection/">via the wayback machine</a>. This blog post shows a stochastic acceptance method suggested by <span class="citation">Lipowski and Lipowska (<a href="#ref-lipowski2012" role="doc-biblioref">2012</a>)</span> (also at <a href="https://arxiv.org/abs/1109.3627" class="uri">https://arxiv.org/abs/1109.3627</a>), which appears very promising. Let’s try some simple tests before incorporating it into the package properly. The stochastic acceptance algorithm is very simple:</p>
+<blockquote>
+<ol style="list-style-type: decimal">
+<li>Select randomly one of the individuals (say, <span class="math inline">\(i\)</span>). The selection is done with uniform probability <span class="math inline">\(1/N\)</span>, which does not depend on the individual’s fitness <span class="math inline">\(w_i\)</span>.</li>
+<li>With probability <span class="math inline">\(w_i/w_\max\)</span>, where <span class="math inline">\(w_\max = \max\{w_i\}_{i=1}^N\)</span> is the maximal fitness in the population, the selection is accepted. Otherwise, the procedure is repeated from step 1 (i.e., in the case of rejection, another selection attempt is made).</li>
+</ol>
+</blockquote>
+<p>This can be implemented as:</p>
+<pre class="cpp"><code>// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include &lt;Rcpp.h&gt;
+#include &lt;dqrng_distribution.h&gt;
+
+auto rng = dqrng::generator&lt;&gt;(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_prob(int n, Rcpp::NumericVector prob) {
+  Rcpp::IntegerVector result(Rcpp::no_init(n));
+  double max_prob = Rcpp::max(prob);
+  uint32_t m(prob.length());
+  std::generate(result.begin(), result.end(),
+                [m, prob, max_prob] () {
+                  while (true) {
+                    int index = (*rng)(m);
+                    if (dqrng::uniform01((*rng)()) &lt; prob[index] / max_prob)
+                      return index + 1;
+                  }
+                });
+  return result;
+} 
+</code></pre>
+<p>First, let’s check that sampling still works as expected:</p>
+<pre class="r"><code>M &lt;- 1e4
+N &lt;- 10
+prob &lt;- runif(N)
+hist(sample.int(N, M, replace = TRUE, prob = prob), breaks = N)</code></pre>
+<p><img src="/post/2022-12-29-roulette-wheel-selection-for-dqrng.en_files/figure-html/histograms-1.png" width="672" /></p>
+<pre class="r"><code>hist(sample_prob(M, prob = prob), breaks = N)</code></pre>
+<p><img src="/post/2022-12-29-roulette-wheel-selection-for-dqrng.en_files/figure-html/histograms-2.png" width="672" /></p>
+<p>Eyeballing these histograms shows that they are very similar, i.e. the stochastic acceptance algorithm selects the ten possibilities with the same probabilities as R’s build in method.</p>
+<p>Second, let’s look at performance:</p>
+<pre class="r"><code>bm &lt;- bench::mark(
+  sample.int = sample.int(N, M, replace = TRUE, prob = prob),
+  sample_prob = sample_prob(M, prob = prob),
+  check = FALSE
+)
+knitr::kable(bm[, 1:6])</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+<th align="right">gc/sec</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">sample.int</td>
+<td align="right">247µs</td>
+<td align="right">282µs</td>
+<td align="right">3313.546</td>
+<td align="right">41.6KB</td>
+<td align="right">2.019224</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob</td>
+<td align="right">271µs</td>
+<td align="right">289µs</td>
+<td align="right">3305.289</td>
+<td align="right">3.81MB</td>
+<td align="right">2.016650</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>plot(bm)</code></pre>
+<pre><code>## Loading required namespace: tidyr</code></pre>
+<p><img src="/post/2022-12-29-roulette-wheel-selection-for-dqrng.en_files/figure-html/benchmark-small-1.png" width="672" /></p>
+<p>There is only little difference between R’s build in method and this algorithm for only ten different possibilities. However, any performance advantage of stochastic acceptance should come from <span class="math inline">\(O(1)\)</span> scaling, i.e. larger number of possibilities are more interesting:</p>
+<pre class="r"><code>N &lt;- 1e5
+prob &lt;- runif(N)
+bm &lt;- bench::mark(
+  sample.int = sample.int(N, M, replace = TRUE, prob = prob),
+  sample_prob = sample_prob(M, prob = prob),
+  check = FALSE
+)
+knitr::kable(bm[, 1:6])</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+<th align="right">gc/sec</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">sample.int</td>
+<td align="right">2.96ms</td>
+<td align="right">3.58ms</td>
+<td align="right">268.6911</td>
+<td align="right">1.19MB</td>
+<td align="right">6.397408</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob</td>
+<td align="right">663.21µs</td>
+<td align="right">863.2µs</td>
+<td align="right">1068.9643</td>
+<td align="right">41.6KB</td>
+<td align="right">0.000000</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>plot(bm)</code></pre>
+<p><img src="/post/2022-12-29-roulette-wheel-selection-for-dqrng.en_files/figure-html/benchmark-large-1.png" width="672" />
+This is very promising! It looks worthwhile including this algorithm into {dqrng}, especially since it can also be used for weighted sampling without replacement.</p>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-lipowski2012" class="csl-entry">
+Lipowski, Adam, and Dorota Lipowska. 2012. <span>“Roulette-Wheel Selection via Stochastic Acceptance.”</span> <em>Physica A: Statistical Mechanics and Its Applications</em> 391 (6): 2193–96. <a href="https://doi.org/10.1016/j.physa.2011.12.004">https://doi.org/10.1016/j.physa.2011.12.004</a>.
+</div>
+</div>
