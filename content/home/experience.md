@@ -19,7 +19,7 @@ date_format = "2006"
 #   Begin/end multi-line descriptions with 3 quotes `"""`.
 [[experience]]
   title = "Solutions Engineer"
-  company = "Posit Software, PBC formarly RStudio, PBC"
+  company = "Posit Software, PBC formerly RStudio, PBC"
   company_url = "https://posit.co/"
   location = ""
   date_start = "2020-01-01"
@@ -42,7 +42,7 @@ date_format = "2006"
   location = "Potsdam, Germany"
   date_start = "2017-04-01"
   date_end = "2019-05-31"
-  description = """Enabling data science by taking care of the sotware engineering aspects of internal and external projects."""
+  description = """Enabling data science by taking care of the software engineering aspects of internal and external projects."""
 
 [[experience]]
   title = "Consultant, Senior Consultant and Principal"
@@ -51,7 +51,7 @@ date_format = "2006"
   location = "Schnaittenbach, Germany"
   date_start = "2007-01-01"
   date_end = "2017-03-31"
-  description = """Consulting for the financial industry with focus on market data and maket risk."""
+  description = """Consulting for the financial industry with focus on market data and market risk."""
 
 [[experience]]
   title = "Research Fellow"
