@@ -24,9 +24,10 @@ social:
 - icon: envelope
   icon_pack: fas
   link: '#contact'
-- icon: twitter
+- icon: mastodon
   icon_pack: fab
-  link: https://twitter.com/rstub73
+  link: https://digitalcourage.social/@rstub
+  rel: me
 #- icon: google-scholar
 #  icon_pack: ai
 #  link: https://scholar.google.co.uk/citations?user=sIwtMXoAAAAJ
@@ -45,10 +46,6 @@ social:
 - icon: keybase
   icon_pack: fab
   link: https://keybase.io/rstub
-- icon: mastodon
-  icon_pack: fab
-  link: https://digitalcourage.social/@rstub
-  rel: me
 superuser: true
 user_groups: []
 ---
