@@ -17,7 +17,7 @@ image:
   focal_point: ''
 ---
 
-The [RcppArrayFire package](http://www.daqana.org/rcpparrayfire/) provides an
+The [RcppArrayFire package](http://daqana.github.io/rcpparrayfire/) provides an
 interface from R to and from the [ArrayFire library](http://www.arrayfire.com/),
 an open source library that can make use of GPUs and other hardware accelerators
 via CUDA or OpenCL. In order to use RcppArrayFire you will need the ArrayFire
