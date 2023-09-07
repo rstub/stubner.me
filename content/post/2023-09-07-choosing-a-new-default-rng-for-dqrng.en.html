@@ -1,0 +1,151 @@
+---
+title: Choosing a new default RNG for dqrng
+author: ''
+date: '2023-09-07'
+slug: choosing-a-new-default-rng-for-dqrng
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+---
+
+
+
+<p>Currently only xoroshiro128+ and xoshiro256+ from <a href="https://prng.di.unimi.it/" class="uri">https://prng.di.unimi.it/</a> are supported. These RNGs should only be used for creating floating point numbers, which was the case for {dqrng} originally. However, <code>dqsample</code> and <code>dqrrademacher</code> make use of the full bit pattern. So it would be better to support the <code>**</code> and/or <code>++</code> variants for both RNGs and make one of them the default. This would be a breaking change, of course. In <a href="https://github.com/daqana/dqrng/pull/57">#57</a> I have added these additional 4 RNGs to <code>xoshiro.h</code> so now is the time to do some benchmarking first by generating some random numbers:</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+// [[Rcpp::depends(dqrng, BH)]]
+#include &lt;dqrng_distribution.h&gt;
+#include &lt;xoshiro.h&gt;
+// [[Rcpp::plugins(cpp11)]]
+
+template&lt;typename RNG&gt;
+Rcpp::NumericVector runif_rng(int n) {
+  auto rng = dqrng::generator&lt;RNG&gt;(42);
+  dqrng::uniform_distribution dist;
+  Rcpp::NumericVector result(Rcpp::no_init(n));
+  std::generate(result.begin(), result.end(), [rng, dist] () {return dist(*rng);});
+  return result;
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128plus(int n) {
+  return runif_rng&lt;dqrng::xoroshiro128plus&gt;(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256plus(int n) {
+  return runif_rng&lt;dqrng::xoshiro256plus&gt;(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128starstar(int n) {
+  return runif_rng&lt;dqrng::xoroshiro128starstar&gt;(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256starstar(int n) {
+  return runif_rng&lt;dqrng::xoshiro256starstar&gt;(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128plusplus(int n) {
+  return runif_rng&lt;dqrng::xoroshiro128plusplus&gt;(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256plusplus(int n) {
+  return runif_rng&lt;dqrng::xoshiro256plusplus&gt;(n);
+}</code></pre>
+<pre class="r"><code>N &lt;- 1e5
+bm &lt;- bench::mark(
+  runif(N),
+  runif_128plus(N),
+  runif_128starstar(N),
+  runif_128plusplus(N),
+  runif_256plus(N),
+  runif_256starstar(N),
+  runif_256plusplus(N),
+  check = FALSE,
+  min_time = 1
+)
+bm[,1:6]</code></pre>
+<pre><code>## # A tibble: 7 × 6
+##   expression                min   median `itr/sec` mem_alloc `gc/sec`
+##   &lt;bch:expr&gt;           &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+## 1 runif(N)               2.95ms   3.47ms      268.     786KB     3.09
+## 2 runif_128plus(N)      335.9µs 354.61µs     2512.     784KB    36.6 
+## 3 runif_128starstar(N) 345.94µs 358.84µs     2503.     784KB    37.2 
+## 4 runif_128plusplus(N) 344.52µs 359.93µs     2562.     784KB    37.8 
+## 5 runif_256plus(N)     343.29µs 364.95µs     2412.     784KB    34.8 
+## 6 runif_256starstar(N) 346.94µs 376.02µs     2505.     784KB    37.0 
+## 7 runif_256plusplus(N)  356.5µs 363.76µs     2517.     784KB    37.1</code></pre>
+<pre class="r"><code>plot(bm)</code></pre>
+<pre><code>## Loading required namespace: tidyr</code></pre>
+<p><img src="/post/2023-09-07-choosing-a-new-default-rng-for-dqrng.en_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+// [[Rcpp::depends(dqrng, BH)]]
+#include &lt;dqrng_sample.h&gt;
+#include &lt;xoshiro.h&gt;
+// [[Rcpp::plugins(cpp11)]]
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128plus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoroshiro128plus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128starstar(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoroshiro128starstar&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128plusplus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoroshiro128plusplus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256plus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoshiro256plus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256starstar(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoshiro256starstar&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256plusplus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoshiro256plusplus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}</code></pre>
+<pre class="r"><code>N &lt;- 1e5
+M &lt;- 1e3
+bm &lt;- bench::mark(
+  sample.int(M, N, replace = TRUE),
+  sample_128plus(M, N),
+  sample_128starstar(M, N),
+  sample_128plusplus(M, N),
+  sample_256plus(M, N),
+  sample_256starstar(M, N),
+  sample_256plusplus(M, N),
+  check = FALSE,
+  min_time = 1
+)
+bm[,1:6]</code></pre>
+<pre><code>## # A tibble: 7 × 6
+##   expression                           min   median `itr/sec` mem_alloc `gc/sec`
+##   &lt;bch:expr&gt;                      &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
+## 1 sample.int(M, N, replace = TRU…   3.27ms   3.65ms      268.     401KB     2.04
+## 2 sample_128plus(M, N)            350.48µs 539.96µs     1770.     393KB    17.9 
+## 3 sample_128starstar(M, N)        418.82µs 639.32µs     1514.     393KB    13.1 
+## 4 sample_128plusplus(M, N)        350.73µs 548.23µs     1765.     393KB    16.9 
+## 5 sample_256plus(M, N)            368.05µs  567.4µs     1697.     393KB    15.5 
+## 6 sample_256starstar(M, N)        368.25µs 557.18µs     1731.     393KB    16.7 
+## 7 sample_256plusplus(M, N)        419.88µs 650.38µs     1504.     393KB    14.3</code></pre>
+<pre class="r"><code>plot(bm)</code></pre>
+<p><img src="/post/2023-09-07-choosing-a-new-default-rng-for-dqrng.en_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>

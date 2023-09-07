@@ -1,0 +1,141 @@
+---
+title: Choosing a new default RNG for dqrng
+author: ''
+date: '2023-09-07'
+slug: choosing-a-new-default-rng-for-dqrng
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+---
+
+Currently only xoroshiro128+ and xoshiro256+ from https://prng.di.unimi.it/ are supported. These RNGs should only be used for creating floating point numbers, which was the case for {dqrng} originally. However, `dqsample` and `dqrrademacher` make use of the full bit pattern. So it would be better to support the `**` and/or `++` variants for both RNGs and make one of them the default. This would be a breaking change, of course. In [#57](https://github.com/daqana/dqrng/pull/57) I have added these additional 4 RNGs to `xoshiro.h` so now is the time to do some benchmarking first by generating some random numbers:
+
+```{Rcpp}
+#include <Rcpp.h>
+// [[Rcpp::depends(dqrng, BH)]]
+#include <dqrng_distribution.h>
+#include <xoshiro.h>
+// [[Rcpp::plugins(cpp11)]]
+
+template<typename RNG>
+Rcpp::NumericVector runif_rng(int n) {
+  auto rng = dqrng::generator<RNG>(42);
+  dqrng::uniform_distribution dist;
+  Rcpp::NumericVector result(Rcpp::no_init(n));
+  std::generate(result.begin(), result.end(), [rng, dist] () {return dist(*rng);});
+  return result;
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128plus(int n) {
+  return runif_rng<dqrng::xoroshiro128plus>(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256plus(int n) {
+  return runif_rng<dqrng::xoshiro256plus>(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128starstar(int n) {
+  return runif_rng<dqrng::xoroshiro128starstar>(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256starstar(int n) {
+  return runif_rng<dqrng::xoshiro256starstar>(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128plusplus(int n) {
+  return runif_rng<dqrng::xoroshiro128plusplus>(n);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256plusplus(int n) {
+  return runif_rng<dqrng::xoshiro256plusplus>(n);
+}
+```
+
+
+```{r}
+N <- 1e5
+bm <- bench::mark(
+  runif(N),
+  runif_128plus(N),
+  runif_128starstar(N),
+  runif_128plusplus(N),
+  runif_256plus(N),
+  runif_256starstar(N),
+  runif_256plusplus(N),
+  check = FALSE,
+  min_time = 1
+)
+bm[,1:6]
+plot(bm)
+```
+
+```{Rcpp}
+#include <Rcpp.h>
+// [[Rcpp::depends(dqrng, BH)]]
+#include <dqrng_sample.h>
+#include <xoshiro.h>
+// [[Rcpp::plugins(cpp11)]]
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128plus(int m, int n) {
+  auto rng = dqrng::generator<dqrng::xoroshiro128plus>(42);
+  return dqrng::sample::sample<INTSXP, uint32_t>(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128starstar(int m, int n) {
+  auto rng = dqrng::generator<dqrng::xoroshiro128starstar>(42);
+  return dqrng::sample::sample<INTSXP, uint32_t>(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128plusplus(int m, int n) {
+  auto rng = dqrng::generator<dqrng::xoroshiro128plusplus>(42);
+  return dqrng::sample::sample<INTSXP, uint32_t>(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256plus(int m, int n) {
+  auto rng = dqrng::generator<dqrng::xoshiro256plus>(42);
+  return dqrng::sample::sample<INTSXP, uint32_t>(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256starstar(int m, int n) {
+  auto rng = dqrng::generator<dqrng::xoshiro256starstar>(42);
+  return dqrng::sample::sample<INTSXP, uint32_t>(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256plusplus(int m, int n) {
+  auto rng = dqrng::generator<dqrng::xoshiro256plusplus>(42);
+  return dqrng::sample::sample<INTSXP, uint32_t>(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+```
+
+
+```{r}
+N <- 1e5
+M <- 1e3
+bm <- bench::mark(
+  sample.int(M, N, replace = TRUE),
+  sample_128plus(M, N),
+  sample_128starstar(M, N),
+  sample_128plusplus(M, N),
+  sample_256plus(M, N),
+  sample_256starstar(M, N),
+  sample_256plusplus(M, N),
+  check = FALSE,
+  min_time = 1
+)
+bm[,1:6]
+plot(bm)
+```
+
