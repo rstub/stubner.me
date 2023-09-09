@@ -1,0 +1,411 @@
+---
+title: Choosing a new default RNG for dqrng
+author: ''
+date: '2023-09-09'
+slug: choosing-a-new-default-rng-for-dqrng
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+bibliography: references.bib
+---
+
+
+
+<p>Currently the dqrng package supports only xoroshiro128+ and xoshiro256+ from <a href="https://prng.di.unimi.it/" class="uri">https://prng.di.unimi.it/</a> <span class="citation">(see also <a href="#ref-blackman2021">Blackman and Vigna 2021</a>)</span>. These RNGs should only be used for creating floating point numbers, which was the case for dqrng originally. However, <code>dqsample</code> and <code>dqrrademacher</code> make use of the full bit pattern. So it would be better to support the <code>**</code> and/or <code>++</code> variants for both RNGs and make one of them the default. This would be a breaking change, of course. In <a href="https://github.com/daqana/dqrng/pull/57">#57</a> I have added these additional 4 RNGs to <code>xoshiro.h</code> so now is the time to do some benchmarking first by generating some random numbers:</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+// [[Rcpp::depends(dqrng, BH)]]
+#include &lt;dqrng_distribution.h&gt;
+#include &lt;xoshiro.h&gt;
+// [[Rcpp::plugins(cpp11)]]
+
+template&lt;typename RNG&gt;
+double sum_rng(int n) {
+  auto rng = dqrng::generator&lt;RNG&gt;(42);
+  dqrng::uniform_distribution dist;
+  double result = 0.0;
+  for (int i = 0; i &lt; n; ++i) {
+    result += dist(*rng);
+  }
+  return result;
+}
+
+// [[Rcpp::export]]
+double sum_128plus(int n) {
+  return sum_rng&lt;dqrng::xoroshiro128plus&gt;(n);
+}
+// [[Rcpp::export]]
+double sum_256plus(int n) {
+  return sum_rng&lt;dqrng::xoshiro256plus&gt;(n);
+}
+// [[Rcpp::export]]
+double sum_128starstar(int n) {
+  return sum_rng&lt;dqrng::xoroshiro128starstar&gt;(n);
+}
+// [[Rcpp::export]]
+double sum_256starstar(int n) {
+  return sum_rng&lt;dqrng::xoshiro256starstar&gt;(n);
+}
+// [[Rcpp::export]]
+double sum_128plusplus(int n) {
+  return sum_rng&lt;dqrng::xoroshiro128plusplus&gt;(n);
+}
+// [[Rcpp::export]]
+double sum_256plusplus(int n) {
+  return sum_rng&lt;dqrng::xoshiro256plusplus&gt;(n);
+}</code></pre>
+<pre class="r"><code>N &lt;- 1e5
+bm &lt;- bench::mark(
+  sum_128plus(N),
+  sum_128starstar(N),
+  sum_128plusplus(N),
+  sum_256plus(N),
+  sum_256starstar(N),
+  sum_256plusplus(N),
+  check = FALSE,
+  min_time = 1
+)
+knitr::kable(bm[, 1:6])</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+<th align="right">gc/sec</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">sum_128plus(N)</td>
+<td align="right">314µs</td>
+<td align="right">318µs</td>
+<td align="right">2989.530</td>
+<td align="right">2.49KB</td>
+<td align="right">0</td>
+</tr>
+<tr class="even">
+<td align="left">sum_128starstar(N)</td>
+<td align="right">340µs</td>
+<td align="right">342µs</td>
+<td align="right">2817.644</td>
+<td align="right">2.49KB</td>
+<td align="right">0</td>
+</tr>
+<tr class="odd">
+<td align="left">sum_128plusplus(N)</td>
+<td align="right">343µs</td>
+<td align="right">347µs</td>
+<td align="right">2784.206</td>
+<td align="right">2.49KB</td>
+<td align="right">0</td>
+</tr>
+<tr class="even">
+<td align="left">sum_256plus(N)</td>
+<td align="right">348µs</td>
+<td align="right">351µs</td>
+<td align="right">2731.439</td>
+<td align="right">2.49KB</td>
+<td align="right">0</td>
+</tr>
+<tr class="odd">
+<td align="left">sum_256starstar(N)</td>
+<td align="right">348µs</td>
+<td align="right">351µs</td>
+<td align="right">2736.009</td>
+<td align="right">2.49KB</td>
+<td align="right">0</td>
+</tr>
+<tr class="even">
+<td align="left">sum_256plusplus(N)</td>
+<td align="right">358µs</td>
+<td align="right">360µs</td>
+<td align="right">2650.948</td>
+<td align="right">2.49KB</td>
+<td align="right">0</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>plot(bm)</code></pre>
+<p><img src="/post/2023-09-09-choosing-a-new-default-rng-for-dqrng.en_files/figure-html/unnamed-chunk-3-1.png" width="672" />
+The current default xoroshiro128+ is fastest in this comparison with the other generators being very similar. Let’s try a more realistic usecase: generating many uniformaly distributed random numbers:</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+// [[Rcpp::depends(dqrng, BH)]]
+#include &lt;dqrng_distribution.h&gt;
+#include &lt;xoshiro.h&gt;
+// [[Rcpp::plugins(cpp11)]]
+
+template&lt;typename RNG&gt;
+Rcpp::NumericVector runif_rng(int n) {
+  auto rng = dqrng::generator&lt;RNG&gt;(42);
+  dqrng::uniform_distribution dist;
+  Rcpp::NumericVector result(Rcpp::no_init(n));
+  std::generate(result.begin(), result.end(), [rng, dist] () {return dist(*rng);});
+  return result;
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128plus(int n) {
+  return runif_rng&lt;dqrng::xoroshiro128plus&gt;(n);
+}
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256plus(int n) {
+  return runif_rng&lt;dqrng::xoshiro256plus&gt;(n);
+}
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128starstar(int n) {
+  return runif_rng&lt;dqrng::xoroshiro128starstar&gt;(n);
+}
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256starstar(int n) {
+  return runif_rng&lt;dqrng::xoshiro256starstar&gt;(n);
+}
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_128plusplus(int n) {
+  return runif_rng&lt;dqrng::xoroshiro128plusplus&gt;(n);
+}
+// [[Rcpp::export]]
+Rcpp::NumericVector runif_256plusplus(int n) {
+  return runif_rng&lt;dqrng::xoshiro256plusplus&gt;(n);
+}</code></pre>
+<pre class="r"><code>N &lt;- 1e5
+bm &lt;- bench::mark(
+  runif(N),
+  runif_128plus(N),
+  runif_128starstar(N),
+  runif_128plusplus(N),
+  runif_256plus(N),
+  runif_256starstar(N),
+  runif_256plusplus(N),
+  check = FALSE,
+  min_time = 1
+)
+knitr::kable(bm[, 1:6])</code></pre>
+<table>
+<colgroup>
+<col width="30%" />
+<col width="13%" />
+<col width="13%" />
+<col width="14%" />
+<col width="14%" />
+<col width="14%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+<th align="right">gc/sec</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">runif(N)</td>
+<td align="right">2.95ms</td>
+<td align="right">3.32ms</td>
+<td align="right">295.9138</td>
+<td align="right">786KB</td>
+<td align="right">5.228159</td>
+</tr>
+<tr class="even">
+<td align="left">runif_128plus(N)</td>
+<td align="right">336.28µs</td>
+<td align="right">423.06µs</td>
+<td align="right">1914.5290</td>
+<td align="right">784KB</td>
+<td align="right">38.338503</td>
+</tr>
+<tr class="odd">
+<td align="left">runif_128starstar(N)</td>
+<td align="right">346.3µs</td>
+<td align="right">452.96µs</td>
+<td align="right">1857.5411</td>
+<td align="right">784KB</td>
+<td align="right">36.422376</td>
+</tr>
+<tr class="even">
+<td align="left">runif_128plusplus(N)</td>
+<td align="right">346.99µs</td>
+<td align="right">444.55µs</td>
+<td align="right">1818.4020</td>
+<td align="right">784KB</td>
+<td align="right">30.229189</td>
+</tr>
+<tr class="odd">
+<td align="left">runif_256plus(N)</td>
+<td align="right">343.13µs</td>
+<td align="right">417.64µs</td>
+<td align="right">1902.2133</td>
+<td align="right">784KB</td>
+<td align="right">31.278781</td>
+</tr>
+<tr class="even">
+<td align="left">runif_256starstar(N)</td>
+<td align="right">348.68µs</td>
+<td align="right">378.25µs</td>
+<td align="right">2203.4952</td>
+<td align="right">784KB</td>
+<td align="right">37.466444</td>
+</tr>
+<tr class="odd">
+<td align="left">runif_256plusplus(N)</td>
+<td align="right">356.95µs</td>
+<td align="right">446.44µs</td>
+<td align="right">1832.3717</td>
+<td align="right">784KB</td>
+<td align="right">31.572455</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>plot(bm)</code></pre>
+<p><img src="/post/2023-09-09-choosing-a-new-default-rng-for-dqrng.en_files/figure-html/unnamed-chunk-5-1.png" width="672" />
+Here all six generators are very similar, with all of them clearly faster than R’s built in <code>runif</code>. How about sampling with replacement, which is also mostly governed by the speed of generating random numbers:</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+// [[Rcpp::depends(dqrng, BH)]]
+#include &lt;dqrng_sample.h&gt;
+#include &lt;xoshiro.h&gt;
+// [[Rcpp::plugins(cpp11)]]
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128plus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoroshiro128plus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128starstar(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoroshiro128starstar&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_128plusplus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoroshiro128plusplus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256plus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoshiro256plus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256starstar(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoshiro256starstar&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_256plusplus(int m, int n) {
+  auto rng = dqrng::generator&lt;dqrng::xoshiro256plusplus&gt;(42);
+  return dqrng::sample::sample&lt;INTSXP, uint32_t&gt;(rng, uint32_t(m), uint32_t(n), true, 0);
+}</code></pre>
+<pre class="r"><code>N &lt;- 1e5
+M &lt;- 1e3
+bm &lt;- bench::mark(
+  sample.int(M, N, replace = TRUE),
+  sample_128plus(M, N),
+  sample_128starstar(M, N),
+  sample_128plusplus(M, N),
+  sample_256plus(M, N),
+  sample_256starstar(M, N),
+  sample_256plusplus(M, N),
+  check = FALSE,
+  min_time = 1
+)
+knitr::kable(bm[, 1:6])</code></pre>
+<table style="width:100%;">
+<colgroup>
+<col width="40%" />
+<col width="11%" />
+<col width="11%" />
+<col width="12%" />
+<col width="12%" />
+<col width="12%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+<th align="right">gc/sec</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">sample.int(M, N, replace = TRUE)</td>
+<td align="right">3.22ms</td>
+<td align="right">3.45ms</td>
+<td align="right">286.6898</td>
+<td align="right">401KB</td>
+<td align="right">2.033261</td>
+</tr>
+<tr class="even">
+<td align="left">sample_128plus(M, N)</td>
+<td align="right">350.22µs</td>
+<td align="right">417.51µs</td>
+<td align="right">2165.7012</td>
+<td align="right">393KB</td>
+<td align="right">20.307182</td>
+</tr>
+<tr class="odd">
+<td align="left">sample_128starstar(M, N)</td>
+<td align="right">402.46µs</td>
+<td align="right">488.56µs</td>
+<td align="right">1873.1944</td>
+<td align="right">393KB</td>
+<td align="right">15.019886</td>
+</tr>
+<tr class="even">
+<td align="left">sample_128plusplus(M, N)</td>
+<td align="right">350.28µs</td>
+<td align="right">380.14µs</td>
+<td align="right">2288.3859</td>
+<td align="right">393KB</td>
+<td align="right">18.472251</td>
+</tr>
+<tr class="odd">
+<td align="left">sample_256plus(M, N)</td>
+<td align="right">367.89µs</td>
+<td align="right">392.56µs</td>
+<td align="right">2221.3853</td>
+<td align="right">393KB</td>
+<td align="right">18.484361</td>
+</tr>
+<tr class="even">
+<td align="left">sample_256starstar(M, N)</td>
+<td align="right">367.38µs</td>
+<td align="right">414.71µs</td>
+<td align="right">2127.8934</td>
+<td align="right">393KB</td>
+<td align="right">17.388302</td>
+</tr>
+<tr class="odd">
+<td align="left">sample_256plusplus(M, N)</td>
+<td align="right">419.19µs</td>
+<td align="right">493.82µs</td>
+<td align="right">1832.8341</td>
+<td align="right">393KB</td>
+<td align="right">15.023230</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>plot(bm)</code></pre>
+<p><img src="/post/2023-09-09-choosing-a-new-default-rng-for-dqrng.en_files/figure-html/unnamed-chunk-7-1.png" width="672" />
+Again nothing really conclusive. All six RNGs are similar and much faster than R’s build in <code>sample.int</code>.</p>
+<p>The speed comparisons between these generators is inconclusive to me. The xoroshiro128 seem to be slightly faster than the xoshiro256 variants. So I am leaning towards one of those as the new default while still making the corresponding xoshiro256 variant available in case a longer period or a higher degree of parallelisation is needed. Comparing the <code>++</code> and <code>**</code> variants, I am leaning towards <code>++</code>, but that is not set in stone.</p>
+<div id="references" class="section level2 unnumbered">
+<h2>References</h2>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-blackman2021" class="csl-entry">
+Blackman, David, and Sebastiano Vigna. 2021. <span>“Scrambled Linear Pseudorandom Number Generators.”</span> <em>ACM Transactions on Mathematical Software</em> 47 (4): 1–32. <a href="https://doi.org/10.1145/3460772">https://doi.org/10.1145/3460772</a>.
+</div>
+</div>
+</div>

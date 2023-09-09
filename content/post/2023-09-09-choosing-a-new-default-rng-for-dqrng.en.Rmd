@@ -1,7 +1,7 @@
 ---
 title: Choosing a new default RNG for dqrng
 author: ''
-date: '2023-09-07'
+date: '2023-09-09'
 slug: choosing-a-new-default-rng-for-dqrng
 categories:
   - R
@@ -12,9 +12,77 @@ tags:
 image:
   caption: ''
   focal_point: ''
+bibliography: references.bib
 ---
 
-Currently only xoroshiro128+ and xoshiro256+ from https://prng.di.unimi.it/ are supported. These RNGs should only be used for creating floating point numbers, which was the case for {dqrng} originally. However, `dqsample` and `dqrrademacher` make use of the full bit pattern. So it would be better to support the `**` and/or `++` variants for both RNGs and make one of them the default. This would be a breaking change, of course. In [#57](https://github.com/daqana/dqrng/pull/57) I have added these additional 4 RNGs to `xoshiro.h` so now is the time to do some benchmarking first by generating some random numbers:
+```{r, echo=FALSE, include=FALSE}
+library(bench)
+library(tidyr)
+```
+
+
+Currently the dqrng package supports only xoroshiro128+ and xoshiro256+ from <https://prng.di.unimi.it/> [see also @blackman2021]. These RNGs should only be used for creating floating point numbers, which was the case for dqrng originally. However, `dqsample` and `dqrrademacher` make use of the full bit pattern. So it would be better to support the `**` and/or `++` variants for both RNGs and make one of them the default. This would be a breaking change, of course. In [#57](https://github.com/daqana/dqrng/pull/57) I have added these additional 4 RNGs to `xoshiro.h` so now is the time to do some benchmarking first by generating some random numbers:
+
+```{Rcpp}
+#include <Rcpp.h>
+// [[Rcpp::depends(dqrng, BH)]]
+#include <dqrng_distribution.h>
+#include <xoshiro.h>
+// [[Rcpp::plugins(cpp11)]]
+
+template<typename RNG>
+double sum_rng(int n) {
+  auto rng = dqrng::generator<RNG>(42);
+  dqrng::uniform_distribution dist;
+  double result = 0.0;
+  for (int i = 0; i < n; ++i) {
+    result += dist(*rng);
+  }
+  return result;
+}
+
+// [[Rcpp::export]]
+double sum_128plus(int n) {
+  return sum_rng<dqrng::xoroshiro128plus>(n);
+}
+// [[Rcpp::export]]
+double sum_256plus(int n) {
+  return sum_rng<dqrng::xoshiro256plus>(n);
+}
+// [[Rcpp::export]]
+double sum_128starstar(int n) {
+  return sum_rng<dqrng::xoroshiro128starstar>(n);
+}
+// [[Rcpp::export]]
+double sum_256starstar(int n) {
+  return sum_rng<dqrng::xoshiro256starstar>(n);
+}
+// [[Rcpp::export]]
+double sum_128plusplus(int n) {
+  return sum_rng<dqrng::xoroshiro128plusplus>(n);
+}
+// [[Rcpp::export]]
+double sum_256plusplus(int n) {
+  return sum_rng<dqrng::xoshiro256plusplus>(n);
+}
+```
+
+```{r}
+N <- 1e5
+bm <- bench::mark(
+  sum_128plus(N),
+  sum_128starstar(N),
+  sum_128plusplus(N),
+  sum_256plus(N),
+  sum_256starstar(N),
+  sum_256plusplus(N),
+  check = FALSE,
+  min_time = 1
+)
+knitr::kable(bm[, 1:6])
+plot(bm)
+```
+The current default xoroshiro128+ is fastest in this comparison with the other generators being very similar. Let's try a more realistic usecase: generating many uniformaly distributed random numbers:
 
 ```{Rcpp}
 #include <Rcpp.h>
@@ -36,33 +104,27 @@ Rcpp::NumericVector runif_rng(int n) {
 Rcpp::NumericVector runif_128plus(int n) {
   return runif_rng<dqrng::xoroshiro128plus>(n);
 }
-
 // [[Rcpp::export]]
 Rcpp::NumericVector runif_256plus(int n) {
   return runif_rng<dqrng::xoshiro256plus>(n);
 }
-
 // [[Rcpp::export]]
 Rcpp::NumericVector runif_128starstar(int n) {
   return runif_rng<dqrng::xoroshiro128starstar>(n);
 }
-
 // [[Rcpp::export]]
 Rcpp::NumericVector runif_256starstar(int n) {
   return runif_rng<dqrng::xoshiro256starstar>(n);
 }
-
 // [[Rcpp::export]]
 Rcpp::NumericVector runif_128plusplus(int n) {
   return runif_rng<dqrng::xoroshiro128plusplus>(n);
 }
-
 // [[Rcpp::export]]
 Rcpp::NumericVector runif_256plusplus(int n) {
   return runif_rng<dqrng::xoshiro256plusplus>(n);
 }
 ```
-
 
 ```{r}
 N <- 1e5
@@ -77,9 +139,10 @@ bm <- bench::mark(
   check = FALSE,
   min_time = 1
 )
-bm[,1:6]
+knitr::kable(bm[, 1:6])
 plot(bm)
 ```
+Here all six generators are very similar, with all of them clearly faster than R's built in `runif`. How about sampling with replacement, which is also mostly governed by the speed of generating random numbers:
 
 ```{Rcpp}
 #include <Rcpp.h>
@@ -120,7 +183,6 @@ Rcpp::IntegerVector sample_256plusplus(int m, int n) {
 }
 ```
 
-
 ```{r}
 N <- 1e5
 M <- 1e3
@@ -135,7 +197,11 @@ bm <- bench::mark(
   check = FALSE,
   min_time = 1
 )
-bm[,1:6]
+knitr::kable(bm[, 1:6])
 plot(bm)
 ```
+Again nothing really conclusive. All six RNGs are similar and much faster than R's build in `sample.int`.
 
+The speed comparisons between these generators is inconclusive to me. The xoroshiro128 seem to be slightly faster than the xoshiro256 variants. So I am leaning towards one of those as the new default while still making the corresponding xoshiro256 variant available in case a longer period or a higher degree of parallelisation is needed. Comparing the `++` and `**` variants, I am leaning towards `++`, but that is not set in stone.
+
+## References
