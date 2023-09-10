@@ -1,0 +1,352 @@
+---
+title: Roulette-wheel selection for dqrng (part 2)
+author: ''
+date: '2023-09-10'
+slug: roulette-wheel-selection-for-dqrng-part-2
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+bibliography: references.bib
+---
+
+
+
+<p>I have blogged about <a href="/2022/12/roulette-wheel-selection-for-dqrng/">weighted sampling</a> before. There I found that the stochastic acceptance method suggested by <span class="citation">Lipowski and Lipowska (<a href="#ref-lipowski2012">2012</a>)</span> (also at <a href="https://arxiv.org/abs/1109.3627" class="uri">https://arxiv.org/abs/1109.3627</a>) is very promising:</p>
+<pre class="cpp"><code>// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include &lt;Rcpp.h&gt;
+#include &lt;dqrng_distribution.h&gt;
+
+auto rng = dqrng::generator&lt;&gt;(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_prob(int size, Rcpp::NumericVector prob) {
+  Rcpp::IntegerVector result(Rcpp::no_init(size));
+  double max_prob = Rcpp::max(prob);
+  uint32_t n(prob.length());
+  std::generate(result.begin(), result.end(),
+                [n, prob, max_prob] () {
+                  while (true) {
+                    int index = (*rng)(n);
+                    if (dqrng::uniform01((*rng)()) &lt; prob[index] / max_prob)
+                      return index + 1;
+                  }
+                });
+  return result;
+} </code></pre>
+<p>For relatively even weight distributions, as created by <code>runif(n)</code> or <code>sample(n)</code>, performance is good, especially for larger populations:</p>
+<pre class="r"><code>sample_R &lt;- function (size, prob) {
+  sample.int(length(prob), size, replace = TRUE, prob)
+}
+
+size &lt;- 1e4
+prob10 &lt;- sample(10)
+prob100 &lt;- sample(100)
+prob1000 &lt;- sample(1000)
+bm &lt;- bench::mark(
+  sample_R(size, prob10),
+  sample_prob(size, prob10),
+  sample_R(size, prob100),
+  sample_prob(size, prob100),
+  sample_R(size, prob1000),
+  sample_prob(size, prob1000),
+  check = FALSE
+)
+knitr::kable(bm[, 1:6])</code></pre>
+<table>
+<colgroup>
+<col width="40%" />
+<col width="8%" />
+<col width="10%" />
+<col width="13%" />
+<col width="14%" />
+<col width="13%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+<th align="right">gc/sec</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">sample_R(size, prob10)</td>
+<td align="right">228µs</td>
+<td align="right">251µs</td>
+<td align="right">3936.183</td>
+<td align="right">41.6KB</td>
+<td align="right">2.015455</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob(size, prob10)</td>
+<td align="right">218µs</td>
+<td align="right">229µs</td>
+<td align="right">4252.202</td>
+<td align="right">41.6KB</td>
+<td align="right">4.057445</td>
+</tr>
+<tr class="odd">
+<td align="left">sample_R(size, prob100)</td>
+<td align="right">410µs</td>
+<td align="right">431µs</td>
+<td align="right">2248.562</td>
+<td align="right">63.5KB</td>
+<td align="right">2.018458</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob(size, prob100)</td>
+<td align="right">245µs</td>
+<td align="right">254µs</td>
+<td align="right">3830.093</td>
+<td align="right">47.6KB</td>
+<td align="right">2.015839</td>
+</tr>
+<tr class="odd">
+<td align="left">sample_R(size, prob1000)</td>
+<td align="right">481µs</td>
+<td align="right">487µs</td>
+<td align="right">1975.758</td>
+<td align="right">53.4KB</td>
+<td align="right">2.016079</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob(size, prob1000)</td>
+<td align="right">253µs</td>
+<td align="right">260µs</td>
+<td align="right">3726.544</td>
+<td align="right">49.5KB</td>
+<td align="right">4.070501</td>
+</tr>
+</tbody>
+</table>
+<p>The nice performance breaks down when an uneven weight distribution is used. Here the largest element <code>n</code> is replaced by <code>n * n</code>, severely deteriorating the performance of the stochastic acceptance method:</p>
+<pre class="r"><code>size &lt;- 1e4
+prob10 &lt;- sample(10)
+prob10[which.max(prob10)] &lt;- 10 * 10
+prob100 &lt;- sample(100)
+prob100[which.max(prob100)] &lt;- 100 * 100
+prob1000 &lt;- sample(1000)
+prob1000[which.max(prob1000)] &lt;- 1000 * 1000
+bm &lt;- bench::mark(
+  sample_R(size, prob10),
+  sample_prob(size, prob10),
+  sample_R(size, prob100),
+  sample_prob(size, prob100),
+  sample_R(size, prob1000),
+  sample_prob(size, prob1000),
+  check = FALSE
+)
+knitr::kable(bm[, 1:6])</code></pre>
+<table>
+<colgroup>
+<col width="36%" />
+<col width="11%" />
+<col width="11%" />
+<col width="14%" />
+<col width="13%" />
+<col width="11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">expression</th>
+<th align="right">min</th>
+<th align="right">median</th>
+<th align="right">itr/sec</th>
+<th align="right">mem_alloc</th>
+<th align="right">gc/sec</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">sample_R(size, prob10)</td>
+<td align="right">160.21µs</td>
+<td align="right">166.64µs</td>
+<td align="right">5763.84477</td>
+<td align="right">41.6KB</td>
+<td align="right">4.214877</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob(size, prob10)</td>
+<td align="right">502.18µs</td>
+<td align="right">513.8µs</td>
+<td align="right">1881.10791</td>
+<td align="right">41.6KB</td>
+<td align="right">2.014034</td>
+</tr>
+<tr class="odd">
+<td align="left">sample_R(size, prob100)</td>
+<td align="right">237.97µs</td>
+<td align="right">247.06µs</td>
+<td align="right">3876.39289</td>
+<td align="right">42.9KB</td>
+<td align="right">4.061176</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob(size, prob100)</td>
+<td align="right">3.51ms</td>
+<td align="right">3.63ms</td>
+<td align="right">271.02831</td>
+<td align="right">41.6KB</td>
+<td align="right">0.000000</td>
+</tr>
+<tr class="odd">
+<td align="left">sample_R(size, prob1000)</td>
+<td align="right">469.18µs</td>
+<td align="right">474.7µs</td>
+<td align="right">2023.85555</td>
+<td align="right">53.4KB</td>
+<td align="right">2.015792</td>
+</tr>
+<tr class="even">
+<td align="left">sample_prob(size, prob1000)</td>
+<td align="right">34.21ms</td>
+<td align="right">34.79ms</td>
+<td align="right">28.37365</td>
+<td align="right">41.6KB</td>
+<td align="right">0.000000</td>
+</tr>
+</tbody>
+</table>
+<p>A good way to think about this was described by <span class="citation">Keith Schwarz (<a href="#ref-keithschwarz2011">2011</a>)</span>.<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> The stochastic acceptance method can be compared to randomly throwing a dart at a bar chart of the weight distribution. If the weight distribution is very uneven, there is a lot of empty space on the chart, i.e. one has to try very often to not hit the empty space. To quantify this, one can use <code>max_weight / average_weight</code>, which is a measure for how many tries one needs before a throw is successful:</p>
+<ul>
+<li>This is 1 for un-weighted distribution.</li>
+<li>This is (around) 2 for a random or a linear weight distribution.</li>
+<li>This would be the number of elements in the extreme case where all weight is on one element.</li>
+</ul>
+<p>The above page also discusses an alternative: The alias method originally suggested by Walker <span class="citation">(<a href="#ref-walker1974">1974</a>, <a href="#ref-walker1977">1977</a>)</span> in the efficient formulation of <span class="citation">Vose (<a href="#ref-vose1991">1991</a>)</span>, which is also used by R in certain cases. The general idea is to redistribute the weight from high weight items to an alias table associated with low weight items. Let’s implement it in C++:</p>
+<pre class="cpp"><code>#include &lt;queue&gt;
+// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include &lt;Rcpp.h&gt;
+#include &lt;dqrng_distribution.h&gt;
+
+auto rng = dqrng::generator&lt;&gt;(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_alias(int size, Rcpp::NumericVector prob) {
+  uint32_t n(prob.size());
+  std::vector&lt;int&gt; alias(n);
+  Rcpp::NumericVector p = prob * n / Rcpp::sum(prob);
+  std::queue&lt;int&gt; high;
+  std::queue&lt;int&gt; low;
+  for(int i = 0; i &lt; n; ++i) {
+    if (p[i] &lt; 1.0)
+      low.push(i);
+    else
+      high.push(i);
+  }
+  while(!low.empty() &amp;&amp; !high.empty()) {
+    int l = low.front();
+    low.pop();
+    int h = high.front();
+    alias[l] = h;
+    p[h] = (p[h] + p[l]) - 1.0;
+    if (p[h] &lt; 1.0) {
+      low.push(h);
+      high.pop();
+    }
+  }
+  while (!low.empty()) {
+    p[low.front()] = 1.0;
+    low.pop();
+  }
+  while (!high.empty()) {
+    p[high.front()] = 1.0;
+    high.pop();
+  }
+  Rcpp::IntegerVector result(Rcpp::no_init(size));
+  std::generate(result.begin(), result.end(),
+                [n, p, alias] () {
+                    int index = (*rng)(n);
+                    if (dqrng::uniform01((*rng)()) &lt; p[index])
+                      return index + 1;
+                    else
+                      return alias[index] + 1;
+                });
+  return result;
+}</code></pre>
+<p>First we need to make sure that all algorithms select the different possibilities with the same probabilities, which seems to be the case:</p>
+<pre class="r"><code>size &lt;- 1e6
+n &lt;- 10
+prob &lt;- sample(n)
+data.frame(
+  sample_R = sample_R(size, prob),
+  sample_prob = sample_prob(size, prob),
+  sample_alias = sample_alias(size, prob)
+) |&gt; pivot_longer(cols = starts_with(&quot;sample&quot;)) |&gt;
+ggplot(aes(x = value, fill = name)) + geom_bar(position = &quot;dodge2&quot;)</code></pre>
+<p><img src="/post/2023-09-10-roulette-wheel-selection-for-dqrng-part-2.en_files/figure-html/histograms-1.png" width="672" /></p>
+<p>Next we benchmark the three methods for a range of different population sizes <code>n</code> and returned samples <code>size</code>. First for a linear weight distribution:</p>
+<pre class="r"><code>bp1 &lt;- bench::press(
+  n = 10^(1:4),
+  size = 10^(0:5),
+  {
+    prob &lt;- sample(n)
+    bench::mark(
+                  sample_R = sample_R(size, prob),
+                  sample_prob = sample_prob(size, prob = prob),
+                  sample_alias = sample_alias(size, prob = prob),
+                  check = FALSE,
+                  time_unit = &quot;s&quot;
+    )
+  }
+) |&gt;
+  mutate(label = as.factor(attr(expression, &quot;description&quot;)))
+ggplot(bp1, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(size))</code></pre>
+<p><img src="/post/2023-09-10-roulette-wheel-selection-for-dqrng-part-2.en_files/figure-html/linear-weight-1.png" width="672" /></p>
+<p>For <code>n &gt; size</code> stochastic sampling seems to work still very well. But when many samples are created, the work done to even out the weights does pay off. This seems to give a good way to decide which method to use. And how about an uneven weight distribution?</p>
+<pre class="r"><code>bp2 &lt;- bench::press(
+  n = 10^(1:4),
+  size = 10^(0:5),
+  {
+    prob &lt;- sample(n)
+    prob[which.max(prob)] &lt;- n * n
+    bench::mark(
+                  sample_R = sample_R(size, prob),
+                  sample_prob = sample_prob(size, prob = prob),
+                  sample_alias = sample_alias(size, prob = prob),
+                  check = FALSE,
+                  time_unit = &quot;s&quot;
+    )
+  }
+) |&gt;
+  mutate(label = as.factor(attr(expression, &quot;description&quot;)))
+ggplot(bp2, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(size))</code></pre>
+<p><img src="/post/2023-09-10-roulette-wheel-selection-for-dqrng-part-2.en_files/figure-html/biased-weight-1.png" width="672" /></p>
+<p>Here the alias method is the fastest as long as there are more than one element generated. But when is the weight distribution so uneven, that one should use the alias method (almost) everywhere? Further investigations are needed …</p>
+<div id="references" class="section level2 unnumbered">
+<h2>References</h2>
+<div id="refs" class="references csl-bib-body hanging-indent">
+<div id="ref-keithschwarz2011" class="csl-entry">
+Keith Schwarz. 2011. <span>“Darts, Dice, and Coins.”</span> <a href="https://www.keithschwarz.com/darts-dice-coins/">https://www.keithschwarz.com/darts-dice-coins/</a>.
+</div>
+<div id="ref-lipowski2012" class="csl-entry">
+Lipowski, Adam, and Dorota Lipowska. 2012. <span>“Roulette-Wheel Selection via Stochastic Acceptance.”</span> <em>Physica A: Statistical Mechanics and Its Applications</em> 391 (6): 2193–96. <a href="https://doi.org/10.1016/j.physa.2011.12.004">https://doi.org/10.1016/j.physa.2011.12.004</a>.
+</div>
+<div id="ref-vose1991" class="csl-entry">
+Vose, M. D. 1991. <span>“A Linear Algorithm for Generating Random Numbers with a Given Distribution.”</span> <em>IEEE Transactions on Software Engineering</em> 17 (9): 972–75. <a href="https://doi.org/10.1109/32.92917">https://doi.org/10.1109/32.92917</a>.
+</div>
+<div id="ref-walker1974" class="csl-entry">
+Walker, Alastair J. 1974. <span>“New Fast Method for Generating Discrete Random Numbers with Arbitrary Frequency Distributions.”</span> <em>Electronics Letters</em> 10 (8): 127. <a href="https://doi.org/10.1049/el:19740097">https://doi.org/10.1049/el:19740097</a>.
+</div>
+<div id="ref-walker1977" class="csl-entry">
+———. 1977. <span>“An Efficient Method for Generating Discrete Random Variables with General Distributions.”</span> <em>ACM Transactions on Mathematical Software</em> 3 (3): 253–56. <a href="https://doi.org/10.1145/355744.355749">https://doi.org/10.1145/355744.355749</a>.
+</div>
+</div>
+</div>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>It looks like this method was invented more than once …<a href="#fnref1" class="footnote-back">↩︎</a></p></li>
+</ol>
+</div>

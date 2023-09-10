@@ -1,0 +1,367 @@
+---
+title: Roulette-wheel selection for dqrng (part 2)
+author: ''
+date: '2023-09-10'
+slug: roulette-wheel-selection-for-dqrng-part-2
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+bibliography: references.bib
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
+
+I have blogged about [weighted sampling](/2022/12/roulette-wheel-selection-for-dqrng/) before. There I found that the stochastic acceptance method suggested by @lipowski2012 (also at <https://arxiv.org/abs/1109.3627>) is very promising:
+
+```{Rcpp sample_prob}
+// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include <Rcpp.h>
+#include <dqrng_distribution.h>
+
+auto rng = dqrng::generator<>(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_prob(int size, Rcpp::NumericVector prob) {
+  Rcpp::IntegerVector result(Rcpp::no_init(size));
+  double max_prob = Rcpp::max(prob);
+  uint32_t n(prob.length());
+  std::generate(result.begin(), result.end(),
+                [n, prob, max_prob] () {
+                  while (true) {
+                    int index = (*rng)(n);
+                    if (dqrng::uniform01((*rng)()) < prob[index] / max_prob)
+                      return index + 1;
+                  }
+                });
+  return result;
+} 
+```
+
+For relatively even weight distributions, as created by `runif(n)` or `sample(n)`, performance is good, especially for larger populations:
+
+```{r initial-linear}
+sample_R <- function (size, prob) {
+  sample.int(length(prob), size, replace = TRUE, prob)
+}
+
+size <- 1e4
+prob10 <- sample(10)
+prob100 <- sample(100)
+prob1000 <- sample(1000)
+bm <- bench::mark(
+  sample_R(size, prob10),
+  sample_prob(size, prob10),
+  sample_R(size, prob100),
+  sample_prob(size, prob100),
+  sample_R(size, prob1000),
+  sample_prob(size, prob1000),
+  check = FALSE
+)
+knitr::kable(bm[, 1:6])
+```
+
+The nice performance breaks down when an uneven weight distribution is used. Here the largest element `n` is replaced by `n * n`, severely deteriorating the performance of the stochastic acceptance method:
+
+```{r initial-biased}
+size <- 1e4
+prob10 <- sample(10)
+prob10[which.max(prob10)] <- 10 * 10
+prob100 <- sample(100)
+prob100[which.max(prob100)] <- 100 * 100
+prob1000 <- sample(1000)
+prob1000[which.max(prob1000)] <- 1000 * 1000
+bm <- bench::mark(
+  sample_R(size, prob10),
+  sample_prob(size, prob10),
+  sample_R(size, prob100),
+  sample_prob(size, prob100),
+  sample_R(size, prob1000),
+  sample_prob(size, prob1000),
+  check = FALSE
+)
+knitr::kable(bm[, 1:6])
+```
+
+A good way to think about this was described by @keithschwarz2011.[^1] The stochastic acceptance method can be compared to randomly throwing a dart at a bar chart of the weight distribution. If the weight distribution is very uneven, there is a lot of empty space on the chart, i.e. one has to try very often to not hit the empty space. To quantify this, one can use `max_weight / average_weight`, which is a measure for how many tries one needs before a throw is successful:
+
+[^1]: It looks like this method was invented more than once ...
+
+-   This is 1 for un-weighted distribution.
+-   This is (around) 2 for a random or a linear weight distribution.
+-   This would be the number of elements in the extreme case where all weight is on one element.
+
+The above page also discusses an alternative: The alias method originally suggested by Walker [-@walker1974; -@walker1977] in the efficient formulation of @vose1991, which is also used by R in certain cases. The general idea is to redistribute the weight from high weight items to an alias table associated with low weight items. Let's implement it in C++:
+
+```{Rcpp sample_alias}
+#include <queue>
+// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include <Rcpp.h>
+#include <dqrng_distribution.h>
+
+auto rng = dqrng::generator<>(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_alias(int size, Rcpp::NumericVector prob) {
+  uint32_t n(prob.size());
+  std::vector<int> alias(n);
+  Rcpp::NumericVector p = prob * n / Rcpp::sum(prob);
+  std::queue<int> high;
+  std::queue<int> low;
+  for(int i = 0; i < n; ++i) {
+    if (p[i] < 1.0)
+      low.push(i);
+    else
+      high.push(i);
+  }
+  while(!low.empty() && !high.empty()) {
+    int l = low.front();
+    low.pop();
+    int h = high.front();
+    alias[l] = h;
+    p[h] = (p[h] + p[l]) - 1.0;
+    if (p[h] < 1.0) {
+      low.push(h);
+      high.pop();
+    }
+  }
+  while (!low.empty()) {
+    p[low.front()] = 1.0;
+    low.pop();
+  }
+  while (!high.empty()) {
+    p[high.front()] = 1.0;
+    high.pop();
+  }
+  Rcpp::IntegerVector result(Rcpp::no_init(size));
+  std::generate(result.begin(), result.end(),
+                [n, p, alias] () {
+                    int index = (*rng)(n);
+                    if (dqrng::uniform01((*rng)()) < p[index])
+                      return index + 1;
+                    else
+                      return alias[index] + 1;
+                });
+  return result;
+}
+```
+
+First we need to make sure that all algorithms select the different possibilities with the same probabilities, which seems to be the case:
+
+```{r histograms}
+size <- 1e6
+n <- 10
+prob <- sample(n)
+data.frame(
+  sample_R = sample_R(size, prob),
+  sample_prob = sample_prob(size, prob),
+  sample_alias = sample_alias(size, prob)
+) |> pivot_longer(cols = starts_with("sample")) |>
+ggplot(aes(x = value, fill = name)) + geom_bar(position = "dodge2")
+```
+
+Next we benchmark the three methods for a range of different population sizes `n` and returned samples `size`. First for a linear weight distribution:
+
+```{r linear-weight, message=FALSE}
+bp1 <- bench::press(
+  n = 10^(1:4),
+  size = 10^(0:5),
+  {
+    prob <- sample(n)
+    bench::mark(
+                  sample_R = sample_R(size, prob),
+                  sample_prob = sample_prob(size, prob = prob),
+                  sample_alias = sample_alias(size, prob = prob),
+                  check = FALSE,
+                  time_unit = "s"
+    )
+  }
+) |>
+  mutate(label = as.factor(attr(expression, "description")))
+ggplot(bp1, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(size))
+```
+
+```{r, eval=FALSE, echo=FALSE}
+ggplot(bp1, aes(x = size, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(n))
+
+bp1 |>
+  group_by(n, size) |>
+  summarise(label = label[which.min(median)]) |>
+  ggplot(aes(n, size, color = label)) + geom_point() + scale_x_log10() + scale_y_log10()
+```
+
+For `n > size` stochastic sampling seems to work still very well. But when many samples are created, the work done to even out the weights does pay off. This seems to give a good way to decide which method to use. And how about an uneven weight distribution?
+
+```{r biased-weight, message=FALSE}
+bp2 <- bench::press(
+  n = 10^(1:4),
+  size = 10^(0:5),
+  {
+    prob <- sample(n)
+    prob[which.max(prob)] <- n * n
+    bench::mark(
+                  sample_R = sample_R(size, prob),
+                  sample_prob = sample_prob(size, prob = prob),
+                  sample_alias = sample_alias(size, prob = prob),
+                  check = FALSE,
+                  time_unit = "s"
+    )
+  }
+) |>
+  mutate(label = as.factor(attr(expression, "description")))
+ggplot(bp2, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(size))
+```
+
+Here the alias method is the fastest as long as there are more than one element generated. But when is the weight distribution so uneven, that one should use the alias method (almost) everywhere? Further investigations are needed ...
+
+```{r, eval=FALSE, echo=FALSE}
+ggplot(bp2, aes(x = size, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(n))
+
+bp2 |>
+  group_by(n, size) |>
+  summarise(label = label[which.min(median)]) |>
+  ggplot(aes(n, size, color = label)) + geom_point() + scale_x_log10() + scale_y_log10()
+```
+
+```{r uniform-weight, eval=FALSE, echo=FALSE, message=FALSE}
+bp3 <- bench::press(
+  n = 10^(1:4),
+  size = 10^(0:5),
+  {
+    prob <- sample(n) + n
+    bench::mark(
+                  sample_R = sample_R(size, prob),
+                  sample_prob = sample_prob(size, prob = prob),
+                  sample_alias = sample_alias(size, prob = prob),
+                  check = FALSE,
+                  time_unit = "s"
+    )
+  }
+) |>
+  mutate(label = as.factor(attr(expression, "description")))
+ggplot(bp3, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(size))
+```
+
+```{r, eval=FALSE, echo=FALSE}
+ggplot(bp3, aes(x = size, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(n))
+
+bp3 |>
+  group_by(n, size) |>
+  summarise(label = label[which.min(median)]) |>
+  ggplot(aes(n, size, color = label)) + geom_point() + scale_x_log10() + scale_y_log10()
+```
+
+```{r final-biased, echo=FALSE, eval=FALSE}
+size <- 1e1
+prob10 <- sample(10)
+prob10[which.max(prob10)] <- 10 * 10
+prob100 <- sample(100)
+prob100[which.max(prob100)] <- 100 * 100
+prob1000 <- sample(1000)
+prob1000[which.max(prob1000)] <- 1000 * 1000
+bm <- bench::mark(
+  sample_R(size, prob10),
+  sample_prob(size, prob10),
+  sample_alias(size, prob10),
+  sample_R(size, prob100),
+  sample_prob(size, prob100),
+  sample_alias(size, prob100),
+  sample_R(size, prob1000),
+  sample_prob(size, prob1000),
+  sample_alias(size, prob1000),
+  check = FALSE
+)
+knitr::kable(bm[, 1:6])
+```
+
+## References
+
+```{Rcpp sample_bisect, echo=FALSE, eval=FALSE}
+// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include <Rcpp.h>
+#include <dqrng_distribution.h>
+
+auto rng = dqrng::generator<>(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_bisect(int size, Rcpp::NumericVector prob) {
+  Rcpp::IntegerVector result(Rcpp::no_init(size));
+  Rcpp::NumericVector cdf = Rcpp::cumsum(prob).get() / Rcpp::sum(prob);
+  std::generate(result.begin(), result.end(),
+                [cdf] () {return 1 + std::distance(cdf.begin(),
+                       std::lower_bound(cdf.begin(), cdf.end(), dqrng::uniform01((*rng)())));});
+  return result;
+}
+```
+
+```{Rcpp sample_search, echo=FALSE, eval=FALSE}
+// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include <Rcpp.h>
+#include <dqrng_distribution.h>
+
+auto rng = dqrng::generator<>(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_search(int size, Rcpp::NumericVector prob) {
+  Rcpp::NumericVector cdf = Rcpp::cumsum(prob).get() / Rcpp::sum(prob);
+  uint32_t n(prob.length());
+  Rcpp::IntegerVector result(Rcpp::no_init(size));
+  std::generate(result.begin(), result.end(),
+                [cdf, n] () {
+                  double rnd = dqrng::uniform01((*rng)());
+                  for (int i = 0; i < n; i++) {
+                    if ( rnd < cdf[i] )
+                      return i + 1;
+                  };});
+  return result;
+}
+```
+
+```{Rcpp sample_sorted_search, echo=FALSE, eval=FALSE}
+// [[Rcpp::depends(dqrng,BH,sitmo)]]
+#include <Rcpp.h>
+#include <dqrng_distribution.h>
+
+auto rng = dqrng::generator<>(42);
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_sorted_search(int size, Rcpp::NumericVector prob) {
+  uint32_t n(prob.length());
+  // sort indices in decreasing order of prob
+  Rcpp::IntegerVector idx = Rcpp::seq(0, n-1);
+  std::stable_sort(idx.begin(), idx.end(),
+       [&prob](size_t i1, size_t i2) {return prob[i1] > prob[i2];});
+
+  Rcpp::NumericVector cdf(n, 1.0/Rcpp::sum(prob));
+  double sum = 0.0;
+  for (uint32_t i = 0; i < n; ++i) {
+    sum += prob[idx[i]];
+    cdf[i] *= sum; 
+  }
+
+  Rcpp::IntegerVector result(Rcpp::no_init(size));
+  std::generate(result.begin(), result.end(),
+                [cdf, idx, n] () {
+                  double rnd = dqrng::uniform01((*rng)());
+                  for (int i = 0; i < n; i++) {
+                    if ( rnd < cdf[i] )
+                      return idx[i] + 1;
+                  };});
+  return result;
+}
+```
