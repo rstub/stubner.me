@@ -17,7 +17,6 @@ image:
 
 
 <p>My <code>dqrng</code> package has some quite old issues, one is <a href="https://github.com/daqana/dqrng/issues/22">“More distribution functions”</a> where I brought forward the idea to support additional distribution functions within <code>dqrng</code>, which currently only supports uniform, normal and exponential distributions. I still think this would be a good idea, but it would also be nice if one could simply plug into the large number of distribution functions that have been implemented for R already. Fortunately this is possible via the mechanism described in <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random-user.html">User-supplied Random Number Generation</a>. In <a href="https://github.com/daqana/dqrng/pull/67">#67</a> I have implemented this. Let’s see how that works by comparing the performance of <code>runif</code>, <code>rnorm</code>, <code>rexp</code>, and <code>sample.int</code><a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> with their counterparts from <code>dqrng</code> with different settings for user-supplied RNGs.</p>
-<p>[1] For <code>runif</code>, <code>rnorm</code>, and <code>rexp</code> the default values for the various distribution parameters are used. Similar for <code>sample.int</code> with <code>size == n</code> and <code>replace == FALSE</code>.</p>
 <p>When comparing the default methods from R with those from <code>dqrng</code> we see a consistent performance advantage for the latter with a factor of about 5 for larger samples:</p>
 <pre class="r"><code>bp1 &lt;- bench::press(
   n = 10^(0:5),
@@ -70,6 +69,6 @@ RNGkind(&quot;user&quot;, &quot;user&quot;)</code></pre>
 <div class="footnotes footnotes-end-of-document">
 <hr />
 <ol>
-<li id="fn1"><p>1<a href="#fnref1" class="footnote-back">↩︎</a></p></li>
+<li id="fn1"><p>For <code>runif</code>, <code>rnorm</code>, and <code>rexp</code> the default values for the various distribution parameters are used. Similar for <code>sample.int</code> with <code>size == n</code> and <code>replace == FALSE</code>.<a href="#fnref1" class="footnote-back">↩︎</a></p></li>
 </ol>
 </div>
