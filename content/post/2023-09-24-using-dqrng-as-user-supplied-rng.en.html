@@ -1,0 +1,75 @@
+---
+title: Using dqrng as user-supplied RNG
+author: ''
+date: '2023-09-24'
+slug: using-dqrng-as-user-supplied-rng
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+---
+
+
+
+<p>My <code>dqrng</code> package has some quite old issues, one is <a href="https://github.com/daqana/dqrng/issues/22">“More distribution functions”</a> where I brought forward the idea to support additional distribution functions within <code>dqrng</code>, which currently only supports uniform, normal and exponential distributions. I still think this would be a good idea, but it would also be nice if one could simply plug into the large number of distribution functions that have been implemented for R already. Fortunately this is possible via the mechanism described in <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random-user.html">User-supplied Random Number Generation</a>. In <a href="https://github.com/daqana/dqrng/pull/67">#67</a> I have implemented this. Let’s see how that works by comparing the performance of <code>runif</code>, <code>rnorm</code>, <code>rexp</code>, and <code>sample.int</code><a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a> with their counterparts from <code>dqrng</code> with different settings for user-supplied RNGs.</p>
+<p>[1] For <code>runif</code>, <code>rnorm</code>, and <code>rexp</code> the default values for the various distribution parameters are used. Similar for <code>sample.int</code> with <code>size == n</code> and <code>replace == FALSE</code>.</p>
+<p>When comparing the default methods from R with those from <code>dqrng</code> we see a consistent performance advantage for the latter with a factor of about 5 for larger samples:</p>
+<pre class="r"><code>bp1 &lt;- bench::press(
+  n = 10^(0:5),
+  dist = c(&quot;runif&quot;, &quot;rnorm&quot;, &quot;rexp&quot;, &quot;sample.int&quot;),
+  {
+    dqdist &lt;- paste0(&quot;dq&quot;, dist)
+    bench::mark(
+                  base1 = eval(call(dist, n)),
+                  dqrng1 = eval(call(dqdist, n)),
+                  check = FALSE,
+                  time_unit = &quot;s&quot;
+    )
+  }
+) |&gt;
+  mutate(label = as.factor(attr(expression, &quot;description&quot;)))
+ggplot(bp1, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(dist))</code></pre>
+<p><img src="/post/2023-09-24-using-dqrng-as-user-supplied-rng.en_files/figure-html/bp1-1.png" width="672" /></p>
+<p>When we enable the RNG from <code>dqrng</code> for the uniform distribution things change for all three distribution functions. For smaller samples of less than 100 draws, the base methods now have comparable performance. Unfortunately, there is not much change for <code>sample.int</code>. For larger samples <code>dqrng</code> still has the edge in all cases, though:</p>
+<pre class="r"><code>RNGkind(&quot;user&quot;)</code></pre>
+<p><img src="/post/2023-09-24-using-dqrng-as-user-supplied-rng.en_files/figure-html/bp2-1.png" width="672" />
+When we also enable the Ziggurat algorithm for normal draws, one sees a nice speedup in <code>rnorm</code>:</p>
+<pre class="r"><code>RNGkind(&quot;user&quot;, &quot;user&quot;)</code></pre>
+<p><img src="/post/2023-09-24-using-dqrng-as-user-supplied-rng.en_files/figure-html/bp3-1.png" width="672" /></p>
+<p>We can also see this when computing the relative speedup of <code>dqrng</code> compared with base R. Enabling the RNG from <code>dqrng</code> for the uniform distribution (“relative2”) brings the base methods on par with their <code>dqrng</code> counterparts for small samples.Also enabling the Ziggurat method for <code>rnorm</code> brings some improvements for larger samples. Unfortunately, there is not much change for <code>sample.int</code>:</p>
+<p><img src="/post/2023-09-24-using-dqrng-as-user-supplied-rng.en_files/figure-html/relative-1.png" width="672" /></p>
+<p>But does this help with making more distribution functions available for people using <code>dqrng</code>? Yes! Internally all the distribution functions in R make use the uniform and the normal distribution. And when we replace those with the variants from <code>dqrng</code>, this also influences these distributions. But first of all, we see that we can set the seed with the normal <code>set.seed</code> and get the same reproducible numbers from base or <code>dqrng</code> methods:</p>
+<pre class="r"><code>set.seed(42); rnorm(5)</code></pre>
+<pre><code>## [1] -0.91881813 -0.06463855  0.80587456  0.27295803  0.26552235</code></pre>
+<pre class="r"><code>set.seed(42); dqrnorm(5)</code></pre>
+<pre><code>## [1] -0.91881813 -0.06463855  0.80587456  0.27295803  0.26552235</code></pre>
+<p>The same is true if you use <code>dqset.seed</code>. However, the even with the same input seed a different output is created, since R does some scrambling on the seed before using it. Maybe I should <a href="https://stackoverflow.com/a/47839021/8416610">revert that</a>:</p>
+<pre class="r"><code>dqset.seed(42); rnorm(5)</code></pre>
+<pre><code>## [1] -1.3679777 -0.7638514 -1.6173858 -0.3507472  0.5683508</code></pre>
+<pre class="r"><code>dqset.seed(42); dqrnorm(5)</code></pre>
+<pre><code>## [1] -1.3679777 -0.7638514 -1.6173858 -0.3507472  0.5683508</code></pre>
+<p>But how do we know that this also works for other distributions? We can simply try it out. Do we get reproducible numbers from various distribution functions after using <code>dqset.seed</code>? Yes:</p>
+<pre class="r"><code>dqset.seed(42); rlnorm(5)</code></pre>
+<pre><code>## [1] 0.2546214 0.4658687 0.1984167 0.7041617 1.7653532</code></pre>
+<pre class="r"><code>dqset.seed(42); rlnorm(5)</code></pre>
+<pre><code>## [1] 0.2546214 0.4658687 0.1984167 0.7041617 1.7653532</code></pre>
+<pre class="r"><code>dqset.seed(42); rt(5, 10)</code></pre>
+<pre><code>## [1] -1.7585953 -0.3260428 -0.3052283  0.2594040 -1.9871566</code></pre>
+<pre class="r"><code>dqset.seed(42); rt(5, 10)</code></pre>
+<pre><code>## [1] -1.7585953 -0.3260428 -0.3052283  0.2594040 -1.9871566</code></pre>
+<p>Overall, adding</p>
+<pre class="r"><code>library(dqrng)
+RNGkind(&quot;user&quot;, &quot;user&quot;)</code></pre>
+<p>at the top of a script before (potentially) setting the seed with <code>set.seed</code> will give high performance for any random draws without further changes to the code. By replacing <code>runif</code>, <code>rnorm</code>, <code>rexp</code>, and <code>sample.int</code> with their counterparts from <code>dqrng</code> one can gain even more, in particular for larger samples. And maybe in the future more distribution functions will be added to <code>dqrng</code> it sself.</p>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>1<a href="#fnref1" class="footnote-back">↩︎</a></p></li>
+</ol>
+</div>

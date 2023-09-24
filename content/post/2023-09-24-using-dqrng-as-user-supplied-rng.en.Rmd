@@ -1,0 +1,167 @@
+---
+title: Using dqrng as user-supplied RNG
+author: ''
+date: '2023-09-24'
+slug: using-dqrng-as-user-supplied-rng
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - package
+image:
+  caption: ''
+  focal_point: ''
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(dqrng)
+```
+
+My `dqrng` package has some quite old issues, one is ["More distribution functions"](https://github.com/daqana/dqrng/issues/22) where I brought forward the idea to support additional distribution functions within `dqrng`, which currently only supports uniform, normal and exponential distributions. I still think this would be a good idea, but it would also be nice if one could simply plug into the large number of distribution functions that have been implemented for R already. Fortunately this is possible via the mechanism described in [User-supplied Random Number Generation](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random-user.html). In [#67](https://github.com/daqana/dqrng/pull/67) I have implemented this. Let's see how that works by comparing the performance of `runif`, `rnorm`, `rexp`, and `sample.int`^[For `runif`, `rnorm`, and `rexp` the default values for the various distribution parameters are used. Similar for `sample.int` with `size == n` and `replace == FALSE`.] with their counterparts from `dqrng` with different settings for user-supplied RNGs.
+
+When comparing the default methods from R with those from `dqrng` we see a consistent performance advantage for the latter with a factor of about 5 for larger samples: 
+
+```{r bp1, message=FALSE}
+bp1 <- bench::press(
+  n = 10^(0:5),
+  dist = c("runif", "rnorm", "rexp", "sample.int"),
+  {
+    dqdist <- paste0("dq", dist)
+    bench::mark(
+                  base1 = eval(call(dist, n)),
+                  dqrng1 = eval(call(dqdist, n)),
+                  check = FALSE,
+                  time_unit = "s"
+    )
+  }
+) |>
+  mutate(label = as.factor(attr(expression, "description")))
+ggplot(bp1, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(dist))
+```
+
+When we enable the RNG from `dqrng` for the uniform distribution things change for all three distribution functions. For smaller samples of less than 100 draws, the base methods now have comparable performance. Unfortunately, there is not much change for `sample.int`. For larger samples `dqrng` still has the edge in all cases, though:
+
+```{r kind}
+RNGkind("user")
+```
+
+
+```{r bp2, message=FALSE, echo=FALSE}
+bp2 <- bench::press(
+  n = 10^(0:5),
+  dist = c("runif", "rnorm", "rexp", "sample.int"),
+  {
+    dqdist <- paste0("dq", dist)
+    bench::mark(
+                  base2 = eval(call(dist, n)),
+                  dqrng2 = eval(call(dqdist, n)),
+                  check = FALSE,
+                  time_unit = "s"
+    )
+  }
+) |>
+  mutate(label = as.factor(attr(expression, "description")))
+ggplot(bp2, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(dist))
+```
+When we also enable the Ziggurat algorithm for normal draws, one sees a nice speedup in `rnorm`:
+
+```{r normal.kind}
+RNGkind("user", "user")
+```
+
+```{r bp3, message=FALSE, echo=FALSE}
+bp3 <- bench::press(
+  n = 10^(0:5),
+  dist = c("runif", "rnorm", "rexp", "sample.int"),
+  {
+    dqdist <- paste0("dq", dist)
+    bench::mark(
+                  base3 = eval(call(dist, n)),
+                  dqrng3 = eval(call(dqdist, n)),
+                  check = FALSE,
+                  time_unit = "s"
+    )
+  }
+) |>
+  mutate(label = as.factor(attr(expression, "description")))
+ggplot(bp3, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(dist))
+```
+
+```{r, include=FALSE, eval=FALSE}
+bp <- rbind(bp1, bp2, bp3)
+bp |>
+  filter(label %in% c("base1", "base2", "base3", "dqrng3")) |>
+  ggplot(aes(x = n, y = median, color = label)) + 
+    geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(dist))
+```
+
+
+```{r, include=FALSE, eval=FALSE}
+rbind(bp1, bp2, bp3) |>
+  filter(n == 1e5) |>
+  select(label, dist, median) |>
+  arrange(dist)
+```
+
+We can also see this when computing the relative speedup of `dqrng` compared with base R. Enabling the RNG from `dqrng` for the uniform distribution ("relative2") brings the base methods on par with their `dqrng` counterparts for small samples.Also enabling the Ziggurat method for `rnorm` brings some improvements for larger samples. Unfortunately, there is not much change for `sample.int`:
+
+```{r relative, echo=FALSE}
+rbind(
+bp1 |>
+  select(label, dist, n, median) |>
+  pivot_wider(names_from = label, values_from = median) |>
+  mutate(relative1 = base1 / dqrng1) |>
+  pivot_longer(c(base1, dqrng1, relative1), names_to = "label", values_to = "median"),
+bp2 |>
+  select(label, dist, n, median) |>
+  pivot_wider(names_from = label, values_from = median) |>
+  mutate(relative2 = base2 / dqrng2) |>
+  pivot_longer(c(base2, dqrng2, relative2), names_to = "label", values_to = "median"),
+bp3 |>
+  select(label, dist, n, median) |>
+  pivot_wider(names_from = label, values_from = median) |>
+  mutate(relative3 = base3 / dqrng3) |>
+  pivot_longer(c(base3, dqrng3, relative3), names_to = "label", values_to = "median")
+) |>
+  filter(label %in% c("relative1", "relative2", "relative3")) |>
+  ggplot(aes(x = n, y = median, color = label)) + 
+    geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(dist))
+```
+
+But does this help with making more distribution functions available for people using `dqrng`? Yes! Internally all the distribution functions in R make use the uniform and the normal distribution. And when we replace those with the variants from `dqrng`, this also influences these distributions. But first of all, we see that we can set the seed with the normal `set.seed` and get the same reproducible numbers from base or `dqrng` methods:
+
+```{r norm1}
+set.seed(42); rnorm(5)
+set.seed(42); dqrnorm(5)
+```
+
+The same is true if you use `dqset.seed`. However, the even with the same input seed a different output is created, since R does some scrambling on the seed before using it. Maybe I should [revert that](https://stackoverflow.com/a/47839021/8416610):
+
+```{r norm2}
+dqset.seed(42); rnorm(5)
+dqset.seed(42); dqrnorm(5)
+```
+
+But how do we know that this also works for other distributions? We can simply try it out. Do we get reproducible numbers from various distribution functions after using `dqset.seed`? Yes:
+
+```{r others}
+dqset.seed(42); rlnorm(5)
+dqset.seed(42); rlnorm(5)
+dqset.seed(42); rt(5, 10)
+dqset.seed(42); rt(5, 10)
+```
+
+Overall, adding 
+
+```r
+library(dqrng)
+RNGkind("user", "user")
+```
+at the top of a script before (potentially) setting the seed with `set.seed` will give high performance for any random draws without further changes to the code. By replacing `runif`, `rnorm`, `rexp`, and `sample.int` with their counterparts from `dqrng` one can gain even more, in particular for larger samples. And maybe in the future more distribution functions will be added to `dqrng` it sself.
