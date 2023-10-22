@@ -1,0 +1,94 @@
+---
+title: Algorithms for unweighted sampling without replacement
+author: ''
+date: '2023-10-22'
+slug: algorithms-for-unweighted-sampling-without-replacement
+categories:
+  - R
+tags:
+  - R
+  - RNG
+  - Numerics
+  - package
+image:
+  caption: ''
+  focal_point: ''
+---
+
+
+
+<p>I am currently working on weighted sampling for <code>dqrng</code>, c.f. <a href="https://github.com/daqana/dqrng/pull/72">#72</a>, for which also have to decide on the algorithm(s) to use for weighted sampling without replacement. Before looking at that I wanted to verify my decisions for the unweighted case.</p>
+<p>Using the new header file <code>dqrng_sample.h</code> from the currently released version v0.3.1 and the ability to access the global RNG from the current development version, it is easy to write functions that make use of the three provided algorithms: Partial Fisher-Yates shuffle, rejection sampling using a hash set and rejection sampling using a bit set:</p>
+<pre class="cpp"><code>#include &lt;Rcpp.h&gt;
+// [[Rcpp::depends(dqrng)]]
+// requires dqrng &gt; v0.3.1
+#include &lt;dqrng.h&gt;
+#include &lt;dqrng_sample.h&gt;
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_shuffle(int n, int size) {
+  dqrng::random_64bit_accessor rng;
+  return dqrng::sample::no_replacement_shuffle&lt;Rcpp::IntegerVector, uint32_t&gt;
+    (rng, uint32_t(n), uint32_t(size), 1);
+}
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_hashset(int n, int size) {
+  dqrng::random_64bit_accessor rng;
+  using set_t = dqrng::minimal_hash_set&lt;uint32_t&gt;;
+      
+  return dqrng::sample::no_replacement_set&lt;Rcpp::IntegerVector, uint32_t, set_t&gt;
+    (rng, uint32_t(n), uint32_t(size), 1);
+}
+
+// [[Rcpp::export]]
+Rcpp::IntegerVector sample_bitset(int n, int size) {
+  dqrng::random_64bit_accessor rng;
+  using set_t = dqrng::minimal_bit_set;
+      
+  return dqrng::sample::no_replacement_set&lt;Rcpp::IntegerVector, uint32_t, set_t&gt;
+    (rng, uint32_t(n), uint32_t(size), 1);
+}
+</code></pre>
+<p>Next we can benchmark these algorithms against each other and the implementation from R itself for different population sizes <code>n</code> and selection ratios <code>r</code>:</p>
+<pre class="r"><code>bp &lt;- bench::press(
+  n = 10^(1:8),
+  r = c(0.7, 0.5, 10^-(1:4)),
+  {
+    size &lt;- ceiling(r * n)
+    bench::mark(
+      sample.int(n, size),
+      sample_shuffle(n, size),
+      sample_hashset(n, size),
+      sample_bitset(n, size),
+      check = FALSE,
+      time_unit = &quot;s&quot;
+    )
+  }
+) |&gt; mutate(label = as.factor(attr(expression, &quot;description&quot;)))</code></pre>
+<pre><code>## Warning: Some expressions had a GC in every iteration; so filtering is
+## disabled.
+
+## Warning: Some expressions had a GC in every iteration; so filtering is
+## disabled.
+
+## Warning: Some expressions had a GC in every iteration; so filtering is
+## disabled.
+
+## Warning: Some expressions had a GC in every iteration; so filtering is
+## disabled.</code></pre>
+<pre class="r"><code>ggplot(bp, aes(x = n, y = median, color = label)) + 
+  geom_line() + scale_x_log10() + scale_y_log10() + facet_wrap(vars(r))</code></pre>
+<p><img src="/post/2023-10-22-algorithms-for-unweighted-sampling-without-replacement.en_files/figure-html/bench-1.png" width="672" />
+We learn:</p>
+<ul>
+<li>The fastest method from <code>dqrng</code> is always faster than R itself.</li>
+<li>The increased performance for R at <code>n = 1e8</code> with low selection ratio is triggered by switching to a hash table. R should do this much earlier.</li>
+<li>For the three methods from <code>dqrng</code> we see:
+<ul>
+<li>For <code>0.5 &lt; r</code> the partial Fisher-Yates shuffle is optimal</li>
+<li>For <code>0.001 &lt; r &lt; 0.5</code> it is best to use rejection sampling using a bit set</li>
+<li>For <code>0.001 &gt; r</code> one should switch to rejection sampling using a hash set</li>
+</ul></li>
+</ul>
+<p>This is exactly how it is implemented in <code>dqrng::sample&lt;VEC, INT&gt;</code>, which is quite reassuring.</p>
